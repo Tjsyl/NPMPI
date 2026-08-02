@@ -38,16 +38,21 @@ def _ask(prompt: str, default: str | None = None) -> str:
 
 
 def _ask_url(prompt: str, default: str | None = None) -> str:
-    """Like _ask, but rejects and re-prompts if what's entered has no
-    http(s):// scheme - requests (and therefore every NPM/Pi-hole call)
-    fails with a fairly cryptic MissingSchema error on a bare IP/host with
-    no scheme, so this catches the mistake right here instead of on the
-    next `npmpi add`."""
+    """Like _ask, but rejects and re-prompts unless what's entered is a full
+    http(s):// URL with an actual host after the scheme - requests (and
+    therefore every NPM/Pi-hole call) fails with a fairly cryptic
+    MissingSchema error on a bare IP/host with no scheme (or on a bare
+    'http://' with nothing after it), so this catches the mistake right
+    here instead of on the next `npmpi add`. URLs are always required, so
+    empty input (no default given, Enter pressed anyway) is rejected too -
+    it's never valid to save a blank NPM/Pi-hole URL."""
     while True:
         val = _ask(prompt, default)
-        if not val or val.startswith("http://") or val.startswith("https://"):
+        if val.startswith("http://") and len(val) > len("http://"):
             return val
-        print("  You must specify http:// or https:// - please retype the full URL.")
+        if val.startswith("https://") and len(val) > len("https://"):
+            return val
+        print("  You must specify a full URL with http:// or https:// and a host, e.g. http://10.0.1.1:81 - please retype it.")
 
 
 def _ask_int(prompt: str, default: int) -> int:
@@ -67,7 +72,9 @@ def _setup_site(existing: dict | None = None) -> tuple[str, dict, dict]:
     ip_prefix = _ask("Backend IP prefix, including trailing dot (e.g. 10.0.1.)", (existing or {}).get("ip_prefix"))
 
     print(f"\n-- NPM for site '{key}' --")
-    npm_url = _ask_url("NPM URL", (existing or {}).get("npm", {}).get("url", "http://"))
+    npm_url = _ask_url("NPM URL (e.g. http://10.0.1.1:81 - NPM's admin UI is commonly plain "
+                        "http unless you've put SSL in front of it yourself)",
+                        (existing or {}).get("npm", {}).get("url"))
     npm_email = _ask("NPM login email", (existing or {}).get("npm", {}).get("email", "") or "")
     npm_password = getpass.getpass("NPM password (stored encrypted, never shown again): ")
     npm_target_ip = _ask("IP this site's Pi-hole(s) should resolve new hostnames to", npm_url.split("//")[-1].split(":")[0])
