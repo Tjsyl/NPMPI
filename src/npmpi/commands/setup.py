@@ -36,6 +36,20 @@ def _ask(prompt: str, default: str | None = None) -> str:
     return val or (default or "")
 
 
+def _ask_url(prompt: str, default: str | None = None) -> str:
+    """Like _ask, but if what's entered has no http(s):// scheme, defaults to
+    https:// and prints what it resolved to - requests (and therefore every
+    NPM/Pi-hole call) fails with a fairly cryptic MissingSchema error on a
+    bare IP/host with no scheme, so this catches the mistake right here
+    instead of on the next `npmpi add`."""
+    val = _ask(prompt, default)
+    if val and not (val.startswith("http://") or val.startswith("https://")):
+        normalized = f"https://{val}"
+        print(f"  (no http(s):// given - using {normalized}; retype with http:// if this Pi-hole/NPM isn't using SSL)")
+        return normalized
+    return val
+
+
 def _ask_int(prompt: str, default: int) -> int:
     while True:
         raw = input(f"{prompt} [{default}]: ").strip()
@@ -53,7 +67,7 @@ def _setup_site(existing: dict | None = None) -> tuple[str, dict, dict]:
     ip_prefix = _ask("Backend IP prefix, including trailing dot (e.g. 10.0.1.)", (existing or {}).get("ip_prefix"))
 
     print(f"\n-- NPM for site '{key}' --")
-    npm_url = _ask("NPM URL", (existing or {}).get("npm", {}).get("url", "http://"))
+    npm_url = _ask_url("NPM URL", (existing or {}).get("npm", {}).get("url", "http://"))
     npm_email = _ask("NPM login email", (existing or {}).get("npm", {}).get("email", "") or "")
     npm_password = getpass.getpass("NPM password (stored encrypted, never shown again): ")
     npm_target_ip = _ask("IP this site's Pi-hole(s) should resolve new hostnames to", npm_url.split("//")[-1].split(":")[0])
@@ -64,7 +78,7 @@ def _setup_site(existing: dict | None = None) -> tuple[str, dict, dict]:
     for i in range(1, n_piholes + 1):
         print(f"\n-- Pi-hole #{i} for site '{key}' --")
         name = _ask("Name (used internally, e.g. pihole1)", f"pihole{i}")
-        url = _ask("URL (e.g. https://10.0.1.2:8489)")
+        url = _ask_url("URL (e.g. https://10.0.1.2:8489)")
         pw = getpass.getpass(f"Password for {name} (stored encrypted, never shown again): ")
         piholes.append({"name": name, "url": url})
         pihole_creds[name] = pw
