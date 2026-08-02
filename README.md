@@ -173,15 +173,16 @@ The output path **must include the filename** (e.g.
 given a path ending in a folder separator by mistake, it writes
 `index.html` inside that folder rather than erroring.
 
-For a browser tab icon *and* a small logo next to the page title, drop
-any file named `*icon.*` (e.g. `favicon.ico`, `icon.png`,
-`tab-icon.svg`) in the same folder as the generated `index.html` - it's
-picked up automatically on the next `npmpi gen`, no config needed, and
-used for both. If no icon file is found, the title just shows on its
-own (e.g. "Home Services" or whatever custom title you set via
-`npmpi setup --gen`, with no icon). Matching is case-insensitive; if
-more than one icon file is present, `.ico` wins, then `.png`/`.svg`,
-then anything else (alphabetically as a final tiebreak).
+For a browser tab icon *and* a small 72x72 logo centered between the
+page title and the services/generated-date line, drop any file named
+`*icon.*` (e.g. `favicon.ico`, `icon.png`, `tab-icon.svg`) in the same
+folder as the generated `index.html` - it's picked up automatically on
+the next `npmpi gen`, no config needed, and used for both. If no icon
+file is found, the title just shows on its own (e.g. "Home Services" or
+whatever custom title you set via `npmpi setup --gen`, with no icon).
+Matching is case-insensitive; if more than one icon file is present,
+`.ico` wins, then `.png`/`.svg`, then anything else (alphabetically as
+a final tiebreak).
 
 If `gen` was skipped during `npmpi setup`, running `npmpi gen` walks you
 through picking a site/output path/title on the spot and saves the
