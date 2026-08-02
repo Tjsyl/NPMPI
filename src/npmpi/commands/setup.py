@@ -18,6 +18,7 @@ import getpass
 
 from npmpi.config import DEFAULT_CONFIG_PATH, config_exists, write_config
 from npmpi.creds import DEFAULT_CREDS_PATH, save_creds
+from npmpi.text import PLAIN_HELP
 
 
 def register(subparsers) -> None:
@@ -37,17 +38,16 @@ def _ask(prompt: str, default: str | None = None) -> str:
 
 
 def _ask_url(prompt: str, default: str | None = None) -> str:
-    """Like _ask, but if what's entered has no http(s):// scheme, defaults to
-    https:// and prints what it resolved to - requests (and therefore every
-    NPM/Pi-hole call) fails with a fairly cryptic MissingSchema error on a
-    bare IP/host with no scheme, so this catches the mistake right here
-    instead of on the next `npmpi add`."""
-    val = _ask(prompt, default)
-    if val and not (val.startswith("http://") or val.startswith("https://")):
-        normalized = f"https://{val}"
-        print(f"  (no http(s):// given - using {normalized}; retype with http:// if this Pi-hole/NPM isn't using SSL)")
-        return normalized
-    return val
+    """Like _ask, but rejects and re-prompts if what's entered has no
+    http(s):// scheme - requests (and therefore every NPM/Pi-hole call)
+    fails with a fairly cryptic MissingSchema error on a bare IP/host with
+    no scheme, so this catches the mistake right here instead of on the
+    next `npmpi add`."""
+    while True:
+        val = _ask(prompt, default)
+        if not val or val.startswith("http://") or val.startswith("https://"):
+            return val
+        print("  You must specify http:// or https:// - please retype the full URL.")
 
 
 def _ask_int(prompt: str, default: int) -> int:
@@ -95,6 +95,7 @@ def _setup_site(existing: dict | None = None) -> tuple[str, dict, dict]:
 
 
 def cmd_setup(cfg, creds, args) -> int:
+    print(PLAIN_HELP)
     print("=== npmpi setup ===")
     if config_exists():
         print(f"(Existing config found at {DEFAULT_CONFIG_PATH} - values below default to what's already there.)")
