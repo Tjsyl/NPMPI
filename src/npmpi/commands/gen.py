@@ -22,6 +22,16 @@ from npmpi.creds import get_npm_password
 DEFAULT_TITLE = "Home Services"
 
 
+def _resolve_output_path(output: str) -> str:
+    """If the configured/entered path ends in a folder separator (\\ or /),
+    treat it as a directory and write index.html inside it, instead of
+    letting open() fail with a cryptic 'Invalid argument' - Windows refuses
+    to open a path with no filename component at all."""
+    if output.endswith("\\") or output.endswith("/"):
+        return output + "index.html"
+    return output
+
+
 def register(subparsers) -> None:
     p = subparsers.add_parser(
         "gen",
@@ -48,7 +58,8 @@ def _ensure_gen_configured(cfg: dict) -> dict:
         while site not in site_keys:
             site = input(f"Please enter one of {site_keys}: ").strip()
 
-    output = input("Path to write index.html to (e.g. a UNC path to the hosting container's share): ").strip()
+    output = input("Path to write index.html to (must include the filename, "
+                   "e.g. \\\\server\\share\\home-services\\index.html): ").strip()
     title = input(f"Page title [{DEFAULT_TITLE}]: ").strip() or DEFAULT_TITLE
 
     cfg["gen"] = {"enabled": True, "site": site, "output": output, "title": title}
@@ -193,7 +204,11 @@ def cmd_gen(cfg, creds, args) -> int:
     gen = _ensure_gen_configured(cfg)
     site_key = gen["site"]
     site = cfg["sites"][site_key]
-    output = args.output or gen["output"]
+    raw_output = args.output or gen["output"]
+    output = _resolve_output_path(raw_output)
+    if output != raw_output:
+        print(f"[gen] output path '{raw_output}' has no filename - writing to '{output}' instead "
+              f"(run `npmpi setup --gen` to fix the stored path itself)")
     title = args.title or gen.get("title", DEFAULT_TITLE)
 
     pw = get_npm_password(creds, site_key)

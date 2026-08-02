@@ -18,6 +18,8 @@ one specific thing any time after that.
                                     site. Add the literal word 'url' after N
                                     to fix only its URL and leave its name/
                                     password untouched.
+    npmpi setup --gen              re-run just the dashboard (gen) config:
+                                    which site, output path, page title
 
 Full wizard: how many sites/networks (normally 2 - your two domain
 letters), each site's domain/IP scheme/Pi-hole(s)/NPM, then collects and
@@ -31,6 +33,7 @@ from __future__ import annotations
 import argparse
 import getpass
 
+from npmpi.commands.gen import DEFAULT_TITLE as GEN_DEFAULT_TITLE, _resolve_output_path
 from npmpi.config import DEFAULT_CONFIG_PATH, config_exists, load_config, write_config
 from npmpi.creds import DEFAULT_CREDS_PATH, creds_exist, load_creds, save_creds
 from npmpi.text import PLAIN_HELP
@@ -52,6 +55,8 @@ def register(subparsers) -> None:
                     help="Re-run just one site's NPM config")
     p.add_argument("--pihole", nargs="+", default=None, metavar="N [url]",
                     help="Re-run just Pi-hole #N's config (optionally: only its url)")
+    p.add_argument("--gen", action="store_true",
+                    help="Re-run just the dashboard (gen) config: site/output path/title")
     p.set_defaults(func=cmd_setup, _skip_config_load=True)
 
 
@@ -178,6 +183,9 @@ def cmd_fix_menu(args) -> int:
     for n, (site_key, idx, ph) in enumerate(_flat_piholes(cfg), start=1):
         print(f"  npmpi setup --pihole {n}".ljust(32) + f"(site '{site_key}', \"{ph['name']}\") currently: {ph['url']}")
         print(f"  npmpi setup --pihole {n} url".ljust(32) + "-> fix just its URL")
+    gen = cfg.get("gen", {})
+    if gen.get("enabled"):
+        print("  npmpi setup --gen".ljust(32) + f"(dashboard, site '{gen.get('site')}') currently: {gen.get('output')}")
     print()
     print("  npmpi setup".ljust(32) + "Full re-run of everything")
     return 0
@@ -274,6 +282,33 @@ def cmd_fix_pihole(args) -> int:
     return 0
 
 
+def cmd_fix_gen(args) -> int:
+    cfg = _require_existing_config()
+    if cfg is None:
+        return 1
+
+    existing = cfg.get("gen", {})
+    site_keys = list(cfg["sites"].keys())
+    print(f"\n-- Dashboard (gen) config (currently: {'enabled, site ' + repr(existing.get('site')) if existing.get('enabled') else 'not enabled'}) --")
+
+    default_site = existing.get("site") if existing.get("site") in site_keys else (site_keys[0] if site_keys else None)
+    site = site_keys[0] if len(site_keys) == 1 else _ask(f"Which site's NPM should the dashboard list? ({'/'.join(site_keys)})", default_site)
+    while site not in site_keys:
+        site = _ask(f"Please enter one of {site_keys}")
+
+    raw_output = _ask("Path to write index.html to (must include the filename, "
+                       "e.g. \\\\server\\share\\home-services\\index.html)", existing.get("output"))
+    output = _resolve_output_path(raw_output)
+    if output != raw_output:
+        print(f"  (no filename given - will write to '{output}' instead)")
+    title = _ask("Page title", existing.get("title", GEN_DEFAULT_TITLE))
+
+    cfg["gen"] = {"enabled": True, "site": site, "output": output, "title": title}
+    write_config(cfg)
+    print(f"\nUpdated dashboard (gen) config -> {DEFAULT_CONFIG_PATH}")
+    return 0
+
+
 def cmd_setup(cfg, creds, args) -> int:
     if args is not None:
         if getattr(args, "paths", False):
@@ -284,6 +319,8 @@ def cmd_setup(cfg, creds, args) -> int:
             return cmd_fix_npm(args)
         if getattr(args, "pihole", None) is not None:
             return cmd_fix_pihole(args)
+        if getattr(args, "gen", False):
+            return cmd_fix_gen(args)
 
     print(PLAIN_HELP)
     print("=== npmpi setup ===")

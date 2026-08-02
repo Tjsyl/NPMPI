@@ -123,6 +123,10 @@ def _help_sections() -> list[tuple]:
                                       "setup --fix` to see the current numbering. Add the "
                                       "literal word 'url' after N to fix only its URL and leave "
                                       "the name/password untouched."),
+                ("--gen", "Re-run just the dashboard (gen) config: which site, the output "
+                          "path (must include the filename, e.g. ...\\index.html - a path "
+                          "ending in a folder separator gets index.html appended "
+                          "automatically rather than erroring), and the page title."),
             ],
             [
                 "npmpi setup",
@@ -133,6 +137,8 @@ def _help_sections() -> list[tuple]:
                 "  -> re-asks just site h's NPM url/email/password.",
                 "npmpi setup --pihole 2 url",
                 "  -> re-asks just Pi-hole #2's URL, nothing else.",
+                "npmpi setup --gen",
+                "  -> re-asks the dashboard's site/output path/title.",
             ],
         ),
     ]
