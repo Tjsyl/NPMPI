@@ -14,12 +14,27 @@ from __future__ import annotations
 import argparse
 import datetime
 import html
+import os
 
 from npmpi import npm as npm_api
 from npmpi.config import write_config
 from npmpi.creds import get_npm_password
 
 DEFAULT_TITLE = "Home Services"
+
+# Preference order when more than one *icon.* file is found - favicon.ico
+# is the most universally-supported browser tab icon format, then the
+# common raster/vector formats, then anything else.
+_ICON_TYPE_BY_EXT = {
+    ".ico": "image/x-icon",
+    ".png": "image/png",
+    ".svg": "image/svg+xml",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".gif": "image/gif",
+    ".webp": "image/webp",
+}
+_ICON_EXT_PRIORITY = [".ico", ".png", ".svg", ".jpg", ".jpeg", ".gif", ".webp"]
 
 
 def _resolve_output_path(output: str) -> str:
@@ -30,6 +45,30 @@ def _resolve_output_path(output: str) -> str:
     if output.endswith("\\") or output.endswith("/"):
         return output + "index.html"
     return output
+
+
+def _find_icon(output_dir: str) -> str | None:
+    """Look in the same directory the dashboard is written to for any file
+    named *icon.<ext> (e.g. favicon.ico, icon.png, tab-icon.svg) to use as
+    the browser tab icon - case-insensitive, since Windows shares usually
+    are. If more than one matches, prefers .ico, then .png/.svg, then
+    whatever else, alphabetically within a tier."""
+    try:
+        entries = os.listdir(output_dir or ".")
+    except OSError:
+        return None
+
+    candidates = []
+    for name in entries:
+        base, ext = os.path.splitext(name)
+        ext = ext.lower()
+        if base.lower().endswith("icon") and ext in _ICON_TYPE_BY_EXT:
+            candidates.append(name)
+    if not candidates:
+        return None
+
+    candidates.sort(key=lambda n: (_ICON_EXT_PRIORITY.index(os.path.splitext(n)[1].lower()), n.lower()))
+    return candidates[0]
 
 
 def register(subparsers) -> None:
@@ -94,7 +133,7 @@ PAGE_TEMPLATE = """<!DOCTYPE html>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>{title}</title>
-<style>
+{icon_link}<style>
   :root {{
     color-scheme: light dark;
     --bg: #14161a; --fg: #e6e6e6; --subtitle: #888;
@@ -177,7 +216,7 @@ CARD_TEMPLATE = """  <div class="card" data-search="{search}">
 ALIAS_TEMPLATE = """<a href="{url}" target="_blank" rel="noopener">{name}</a>"""
 
 
-def render(cards: list[dict], title: str) -> str:
+def render(cards: list[dict], title: str, icon: str | None = None) -> str:
     card_html_list = []
     for c in cards:
         scheme = c["url"].split(":", 1)[0]
@@ -193,10 +232,17 @@ def render(cards: list[dict], title: str) -> str:
             search=html.escape(search_terms), url=c["url"], name=html.escape(c["primary"]),
             scheme=scheme, scheme_label=scheme.upper(), aliases_html=aliases_html,
         ))
+
+    icon_link = ""
+    if icon:
+        icon_type = _ICON_TYPE_BY_EXT.get(os.path.splitext(icon)[1].lower(), "image/x-icon")
+        icon_link = f'<link rel="icon" type="{icon_type}" href="{html.escape(icon)}">\n'
+
     return PAGE_TEMPLATE.format(
         title=html.escape(title), count=len(cards),
         generated=datetime.datetime.now().strftime("%Y-%m-%d %H:%M"),
         cards="\n".join(card_html_list),
+        icon_link=icon_link,
     )
 
 
@@ -219,7 +265,11 @@ def cmd_gen(cfg, creds, args) -> int:
     cards = build_cards(hosts)
     print(f"[npm] found {len(cards)} enabled proxy host(s)")
 
-    page = render(cards, title)
+    icon = _find_icon(os.path.dirname(output))
+    if icon:
+        print(f"[gen] using '{icon}' as the browser tab icon")
+
+    page = render(cards, title, icon)
     with open(output, "w", encoding="utf-8") as f:
         f.write(page)
 

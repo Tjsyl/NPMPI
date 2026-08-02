@@ -173,6 +173,13 @@ The output path **must include the filename** (e.g.
 given a path ending in a folder separator by mistake, it writes
 `index.html` inside that folder rather than erroring.
 
+For a browser tab icon, drop any file named `*icon.*` (e.g.
+`favicon.ico`, `icon.png`, `tab-icon.svg`) in the same folder as the
+generated `index.html` - it's picked up automatically on the next `npmpi
+gen`, no config needed. Matching is case-insensitive; if more than one
+icon file is present, `.ico` wins, then `.png`/`.svg`, then anything
+else (alphabetically as a final tiebreak).
+
 If `gen` was skipped during `npmpi setup`, running `npmpi gen` walks you
 through picking a site/output path/title on the spot and saves the
 choice to `config.json` for next time. Already configured but need to
