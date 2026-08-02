@@ -81,14 +81,23 @@ def _extended_help() -> str:
             "npmpi migrate [SITE]",
             "Interactively move a site's NPM proxy hosts to a new NPM instance. "
             "Explains what it's about to do, backs up the source NPM's proxy hosts "
-            "to a JSON file you choose the path for, offers to also back up that "
-            "site's Pi-hole(s) (DNS-records-only or a full Teleporter archive - your "
-            "choice), then previews the import before creating anything on the "
-            "destination.",
-            [],
+            "to a JSON file you choose the path for, then previews the import before "
+            "creating anything on the destination.",
+            [
+                ("Pi-hole backup (asked interactively, not a flag)",
+                 "After the NPM backup, you're offered a backup of that site's Pi-hole(s) "
+                 "too, your choice of two kinds:\n"
+                 "            1. DNS records only - lightweight JSON export of just the "
+                 "custom local DNS records (what npmpi itself manages).\n"
+                 "            2. Full Teleporter backup - Pi-hole's own complete config "
+                 "archive (DNS records, blocklists, groups, settings - everything), one "
+                 ".zip per configured Pi-hole, via the same endpoint the Pi-hole web UI's "
+                 "own Export button uses."),
+            ],
             [
                 "npmpi migrate",
-                "  -> asks which configured site to migrate, then walks through the rest.",
+                "  -> asks which configured site to migrate, then walks through the rest,",
+                "     including which kind of Pi-hole backup you want along the way.",
                 "npmpi migrate h",
                 "  -> starts directly from site 'h', skipping the site-picker prompt.",
             ],
