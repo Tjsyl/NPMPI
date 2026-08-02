@@ -4,6 +4,7 @@ __pycache__/
 build/
 dist/
 .venv/
+installer_output/
 
 # Never commit real config/credentials
 config.json
