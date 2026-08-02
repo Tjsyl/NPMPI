@@ -40,9 +40,9 @@ def _extended_help() -> str:
             "not an error.",
             [
                 "npmpi add m test 99 8888",
-                "  -> test.m.tjsyl.com, http, backend <m's ip prefix>99:8888, site 'm' only.",
+                "  -> test.<m's domain>, http, backend <m's ip prefix>99:8888, site 'm' only.",
                 "npmpi add h test -s 99 8888",
-                "  -> test.home.tjsyl.com, https, backend <h's ip prefix>99:8888, site 'h' only.",
+                "  -> test.<h's domain>, https, backend <h's ip prefix>99:8888, site 'h' only.",
             ],
         ),
         (

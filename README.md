@@ -90,12 +90,12 @@ full syntax + examples for every command.
 npmpi add [SITE] NAME [-s|--https] OCTET PORT
 ```
 
-- `npmpi add m test 99 8888` - creates `test.m.tjsyl.com`, http, backend
+- `npmpi add m test 99 8888` - creates `test.<m's domain>`, http, backend
   `<m's ip prefix>99:8888`. Site `m` only - no cross-site mirroring.
-- `npmpi add h test -s 99 8888` - creates `test.home.tjsyl.com`, https,
+- `npmpi add h test -s 99 8888` - creates `test.<h's domain>`, https,
   backend `<h's ip prefix>99:8888`. Site `h` only.
 - `npmpi add test -s 99 8888` (no site letter) - creates **both**
-  `test.m.tjsyl.com` and `test.home.tjsyl.com` as real backends on their
+  `test.<m's domain>` and `test.<h's domain>` as real backends on their
   own networks, **and** cross-mirrors each onto the other site's
   Pi-hole(s)/NPM, so either name resolves and works no matter which
   network you're on.
