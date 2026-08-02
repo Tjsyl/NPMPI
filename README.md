@@ -10,35 +10,51 @@ Replaces: `addhost.py`, `addhostm.py`, `addhome.py`, `addm.py`,
 
 ## Install
 
-**Option A - one-time bootstrap (recommended):**
+npmpi ships as a **standalone `npmpi.exe`** - no Python, no pip, nothing
+else required on the machine you run it on.
+
+**Option A - installer script (recommended):**
 
 ```powershell
 .\install.ps1
 ```
 
-Checks for Python, git, and pipx (offering to install any that are
-missing via `winget`), then installs npmpi straight from GitHub with
-`pipx` so the `npmpi` command works from any terminal - cmd, PowerShell,
-Windows Terminal - with no wrapper scripts to maintain.
+Downloads the latest `npmpi.exe` from this repo's GitHub Releases (built
+automatically by CI on every version tag) into `%LOCALAPPDATA%\npmpi` and
+adds that folder to your user PATH, so `npmpi` works from any terminal -
+cmd, PowerShell, Windows Terminal. Safe to re-run any time to grab an
+update.
 
-**Option B - manual:**
+**Option B - manual download:**
+
+Grab `npmpi.exe` from the [Releases page](../../releases) yourself and
+put it anywhere on your PATH.
+
+> The exe isn't code-signed (that needs a paid certificate), so Windows
+> SmartScreen/Defender will likely flag it as unrecognized the first time
+> you run it. That's expected for an indie tool, not a sign anything's
+> wrong - click "More info" -> "Run anyway". If you'd rather avoid that
+> prompt entirely, build it yourself locally instead (see below).
+
+**Option C - build it yourself:**
 
 ```powershell
-pipx install git+https://github.com/USERNAME/npmpi.git
+python -m pip install -e .[build]
+.\build_exe.ps1
 ```
 
-or, for local development against a cloned copy:
+Produces `dist\npmpi.exe` using PyInstaller, built locally so there's
+nothing to trust but your own machine. Must be run on Windows (PyInstaller
+doesn't cross-compile).
+
+**Option D - run from source (for development):**
 
 ```powershell
 pip install -e .
 ```
 
-> `pipx` is strongly preferred over plain `pip install` for this -
-> it installs npmpi into its own isolated environment and puts a real
-> `npmpi` launcher on PATH automatically. A plain `pip install` only
-> gives you a global command if the Python environment you installed
-> into is already on PATH (true for a base/system Python install, not
-> guaranteed for a venv).
+Gives you a `npmpi` command backed by your local Python install rather
+than a compiled exe - useful while making changes to the code.
 
 ## First run
 
@@ -133,9 +149,15 @@ after rebuilding a broken container). Before touching anything, it:
 1. Explains what it's about to do.
 2. Backs up the source NPM's proxy hosts + certificates to a JSON file at
    a path you choose.
-3. Offers to *also* back up that site's Pi-hole local DNS records to a
-   separate JSON file - independent of the NPM backup, since the two
-   systems can drift apart on their own.
+3. Offers to *also* back up that site's Pi-hole(s) - independent of the
+   NPM backup, since the two systems can drift apart on their own. Your
+   choice of:
+   - **DNS records only** - lightweight JSON export of just the custom
+     local DNS records (what npmpi itself manages).
+   - **Full Teleporter backup** - Pi-hole's own complete config archive
+     (DNS records, blocklists, groups, settings - everything), via the
+     same `/api/teleporter` endpoint the web UI's Export button uses.
+     One `.zip` per configured Pi-hole.
 4. Previews exactly what would be created on the destination NPM before
    asking you to confirm.
 
@@ -163,16 +185,22 @@ prompts, ever. If you ever need npmpi on a different machine, run
 
 ## Requirements
 
-- Windows (credential storage is DPAPI-based)
-- Python 3.10+
-- git (only needed for the `pipx install git+...` install step)
+To **run** the `npmpi.exe` release build: Windows only (credential
+storage is DPAPI-based). Nothing else - no Python needed.
+
+To **build** it yourself: Python 3.10+ and `pip install -e .[build]`
+(pulls in PyInstaller).
 
 ## What changed from the old scripts
 
-- 12 separate `.py`/`.cmd`/`.ps1` files → one installed command.
+- 12 separate `.py`/`.cmd`/`.ps1` files → one standalone `npmpi.exe`.
 - 5 separate DPAPI credential files → 1 combined file.
-- Hand-maintained `PATH`/wrapper `.cmd` files → a real installed console
-  command via `pipx`.
+- Hand-maintained `PATH`/wrapper `.cmd` files → a real command on PATH,
+  no Python installation required to run it at all.
+- Domain suffix, IP prefix, NPM/Pi-hole URLs → nothing is hardcoded in
+  the code anywhere; all of it is defined interactively in `npmpi setup`
+  (or by hand-editing the commented `config.json` it writes) and re-runnable
+  any time IP schemes or passwords change.
 - `synchome2m.py` + `syncm2home.py` → one `npmpi sync` (does both
   directions).
 - `addhost*`/`addhome`/`addm` → one `npmpi add`, with the site letter
@@ -180,5 +208,6 @@ prompts, ever. If you ever need npmpi on a different machine, run
 - `appendhost*`/`appendhome`/`appendm` → folded into `npmpi add`'s
   auto-detect-existing behavior; no separate command needed.
 - `npm_migrate.py`'s export/import split → one guided `npmpi migrate`
-  flow with backup prompts built in (including Pi-hole DNS, which the
-  old tool didn't back up at all).
+  flow with backup prompts built in - DNS-records-only or a full Pi-hole
+  Teleporter archive, your choice (the old tool didn't back up Pi-hole
+  at all).

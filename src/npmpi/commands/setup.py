@@ -49,8 +49,8 @@ def _ask_int(prompt: str, default: int) -> int:
 def _setup_site(existing: dict | None = None) -> tuple[str, dict, dict]:
     print()
     key = _ask("Site letter/key (used in `npmpi add <key> ...`)", (existing or {}).get("_key", ""))
-    domain = _ask("Domain suffix for this site (e.g. home.tjsyl.com)", (existing or {}).get("domain"))
-    ip_prefix = _ask("Backend IP prefix, including trailing dot (e.g. 10.10.254.)", (existing or {}).get("ip_prefix"))
+    domain = _ask("Domain suffix for this site (e.g. home.example.com)", (existing or {}).get("domain"))
+    ip_prefix = _ask("Backend IP prefix, including trailing dot (e.g. 10.0.1.)", (existing or {}).get("ip_prefix"))
 
     print(f"\n-- NPM for site '{key}' --")
     npm_url = _ask("NPM URL", (existing or {}).get("npm", {}).get("url", "http://"))
@@ -64,7 +64,7 @@ def _setup_site(existing: dict | None = None) -> tuple[str, dict, dict]:
     for i in range(1, n_piholes + 1):
         print(f"\n-- Pi-hole #{i} for site '{key}' --")
         name = _ask("Name (used internally, e.g. pihole1)", f"pihole{i}")
-        url = _ask("URL (e.g. https://10.10.254.2:8489)")
+        url = _ask("URL (e.g. https://10.0.1.2:8489)")
         pw = getpass.getpass(f"Password for {name} (stored encrypted, never shown again): ")
         piholes.append({"name": name, "url": url})
         pihole_creds[name] = pw

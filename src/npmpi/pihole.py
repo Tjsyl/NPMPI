@@ -62,3 +62,21 @@ def logout(base_url: str, sid: str) -> None:
         requests.delete(f"{base_url}/api/auth", headers={"X-FTL-SID": sid}, verify=False, timeout=10)
     except Exception:
         pass
+
+
+def teleporter_export(base_url: str, sid: str) -> bytes:
+    """
+    Full Pi-hole Teleporter backup (complete config archive: DNS records,
+    blocklists, groups, settings - everything, not just custom DNS hosts).
+    Same endpoint the web UI's Settings -> Teleporter -> Export button
+    calls. Returns the raw archive bytes (Pi-hole v6 packages this as a
+    .zip) - write them to disk as-is, don't try to parse/modify them.
+    """
+    resp = requests.get(
+        f"{base_url}/api/teleporter",
+        headers={"X-FTL-SID": sid},
+        verify=False,
+        timeout=60,
+    )
+    resp.raise_for_status()
+    return resp.content

@@ -95,28 +95,58 @@ Nothing is written to the destination until you confirm the preview.
     Path(backup_path).write_text(json.dumps(out, indent=2), encoding="utf-8")
     print(f"[npm] exported {len(hosts)} proxy hosts and {len(certs)} certificates -> {backup_path}")
 
-    if _confirm("Also back up this site's Pi-hole local DNS records?"):
-        default_dns_backup = f"npmpi_migrate_{site_key}_pihole_dns_{datetime.date.today().isoformat()}.json"
-        dns_backup_path = input(f"Path to save the Pi-hole DNS backup [{default_dns_backup}]: ").strip() or default_dns_backup
-        dns_out = {}
-        for ph in site["piholes"]:
-            name = ph["name"]
-            try:
-                phpw = get_pihole_password(creds, site_key, name)
-                print(f"[{name}] logging in to {ph['url']} ...")
-                sid = pihole_api.login(ph["url"], phpw)
+    if _confirm("Also back up this site's Pi-hole(s)?"):
+        print("""
+  Two options:
+    1. DNS records only  - lightweight JSON export of just the custom
+                            local DNS records (what npmpi itself manages).
+    2. Full Teleporter backup - Pi-hole's own complete config archive
+                            (DNS records, blocklists, groups, settings -
+                            everything), one .zip per pihole. Larger, but
+                            a true full restore point.
+""")
+        choice = input("Which kind of backup? (1/2) [1]: ").strip() or "1"
+
+        if choice == "2":
+            for ph in site["piholes"]:
+                name = ph["name"]
+                default_zip = f"npmpi_migrate_{site_key}_{name}_teleporter_{datetime.date.today().isoformat()}.zip"
+                zip_path = input(f"Path to save {name}'s Teleporter backup [{default_zip}]: ").strip() or default_zip
                 try:
-                    dns_out[name] = {"url": ph["url"], "hosts": pihole_api.get_hosts(ph["url"], sid)}
-                    print(f"[{name}] backed up {len(dns_out[name]['hosts'])} DNS record(s)")
-                finally:
-                    pihole_api.logout(ph["url"], sid)
-            except Exception as e:
-                print(f"[{name}] FAILED to back up: {e}")
-        Path(dns_backup_path).write_text(json.dumps(dns_out, indent=2), encoding="utf-8")
+                    phpw = get_pihole_password(creds, site_key, name)
+                    print(f"[{name}] logging in to {ph['url']} ...")
+                    sid = pihole_api.login(ph["url"], phpw)
+                    try:
+                        archive = pihole_api.teleporter_export(ph["url"], sid)
+                        Path(zip_path).write_bytes(archive)
+                        print(f"[{name}] wrote Teleporter backup ({len(archive)} bytes) -> {zip_path}")
+                    finally:
+                        pihole_api.logout(ph["url"], sid)
+                except Exception as e:
+                    print(f"[{name}] FAILED to back up: {e}")
+        else:
+            default_dns_backup = f"npmpi_migrate_{site_key}_pihole_dns_{datetime.date.today().isoformat()}.json"
+            dns_backup_path = input(f"Path to save the Pi-hole DNS backup [{default_dns_backup}]: ").strip() or default_dns_backup
+            dns_out = {}
+            for ph in site["piholes"]:
+                name = ph["name"]
+                try:
+                    phpw = get_pihole_password(creds, site_key, name)
+                    print(f"[{name}] logging in to {ph['url']} ...")
+                    sid = pihole_api.login(ph["url"], phpw)
+                    try:
+                        dns_out[name] = {"url": ph["url"], "hosts": pihole_api.get_hosts(ph["url"], sid)}
+                        print(f"[{name}] backed up {len(dns_out[name]['hosts'])} DNS record(s)")
+                    finally:
+                        pihole_api.logout(ph["url"], sid)
+                except Exception as e:
+                    print(f"[{name}] FAILED to back up: {e}")
+            Path(dns_backup_path).write_text(json.dumps(dns_out, indent=2), encoding="utf-8")
+            print(f"Wrote Pi-hole DNS backup -> {dns_backup_path}")
         print(f"Wrote Pi-hole DNS backup -> {dns_backup_path}")
 
     print()
-    dest_url = input("New NPM URL to migrate hosts onto (e.g. http://10.10.254.1:81): ").strip()
+    dest_url = input(f"New NPM URL to migrate hosts onto (e.g. {site['npm']['url']}): ").strip()
     if not dest_url:
         print("No destination given - stopping after backup. Your backup file is safe to use later:")
         print(f"  {backup_path}")

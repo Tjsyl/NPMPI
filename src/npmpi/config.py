@@ -80,7 +80,7 @@ def _site_block(key: str, site: dict[str, Any], indent: str = "    ") -> str:
 {indent}    "domain": {json.dumps(site["domain"])},
 
 {indent}    // Backend IP prefix for this site's network. The last octet you pass to
-{indent}    // `npmpi add` is appended to this, e.g. prefix "10.10.254." + octet 99 -> 10.10.254.99
+{indent}    // `npmpi add` is appended to this, e.g. prefix {json.dumps(site["ip_prefix"])} + octet 99 -> {site["ip_prefix"]}99
 {indent}    "ip_prefix": {json.dumps(site["ip_prefix"])},
 
 {indent}    // This site's Nginx Proxy Manager
@@ -103,7 +103,7 @@ def write_config(cfg: dict[str, Any], path: Path = DEFAULT_CONFIG_PATH) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
 
     site_keys = list(cfg["sites"].keys())
-    site_blocks = ",\n\n".join(_site_block(k, cfg["sites"][k]) for k in site_keys)
+    site_blocks = ",\n\n".join(_site_block(k, cfg["sites"][k], indent="        ") for k in site_keys)
 
     gen = cfg.get("gen", {"enabled": False})
     enabled_line = f'"enabled": {json.dumps(gen.get("enabled", False))}'
@@ -132,7 +132,9 @@ def write_config(cfg: dict[str, Any], path: Path = DEFAULT_CONFIG_PATH) -> None:
     // so you can hand-edit it (e.g. change an IP) without re-running setup.
     // Re-run `npmpi setup` any time to regenerate this file interactively.
 
-{site_blocks},
+    "sites": {{
+{site_blocks}
+    }},
 
 {gen_block}
 }}
