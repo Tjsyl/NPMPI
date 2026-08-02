@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+*.egg-info/
+build/
+dist/
+.venv/
+
+# Never commit real config/credentials
+config.json
+credentials.dat
+*_migrate_*.json
+npmpi_migrate_*.json
