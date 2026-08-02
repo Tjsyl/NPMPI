@@ -66,8 +66,19 @@ def _help_sections() -> list[tuple]:
             "enabled proxy host on a site's NPM, alphabetically sorted, with a "
             "client-side search box. Regenerate it any time a host's added/removed/"
             "renamed. If never configured, walks you through picking a site/output "
-            "path/title first and saves that choice to config.json.",
-            [],
+            "path/title first and saves that choice to config.json. Output path must "
+            "include the filename (e.g. ...\\index.html) - a path ending in a folder "
+            "separator gets index.html appended automatically rather than erroring.",
+            [
+                ("Browser tab icon + title logo (automatic, not a flag)",
+                 "Drop any file named *icon.* (e.g. favicon.ico, icon.png, tab-icon.svg) "
+                 "in the same folder as the generated index.html - picked up automatically "
+                 "on the next run, no config needed. Used as both the browser tab icon and "
+                 "a 72x72 logo centered between the title and the services/generated-date "
+                 "line. If none found, just the title shows, same as before. Case-"
+                 "insensitive; if more than one matches, .ico wins, then .png/.svg, then "
+                 "anything else."),
+            ],
             [
                 "npmpi gen",
                 "  -> regenerates using the configured site/output/title.",
