@@ -20,7 +20,7 @@
 #>
 
 param(
-    [string]$RepoOwner = "USERNAME",
+    [string]$RepoOwner = "tjsyl",
     [string]$RepoName = "npmpi",
     [string]$InstallDir = "$env:LOCALAPPDATA\npmpi"
 )
