@@ -127,6 +127,10 @@ def main(argv: list[str] | None = None) -> None:
     argv = sys.argv[1:] if argv is None else argv
 
     if not argv:
+        if not config_exists():
+            print("No configuration found - looks like this is your first run.\n")
+            rc = setup.cmd_setup({}, {}, None)
+            sys.exit(rc or 0)
         print(PLAIN_HELP)
         return
 
