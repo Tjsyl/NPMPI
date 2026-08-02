@@ -157,6 +157,7 @@ PAGE_TEMPLATE = """<!DOCTYPE html>
   body {{ margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
           background: var(--bg); color: var(--fg); padding: 40px 24px; }}
   h1 {{ text-align: center; font-weight: 600; margin-bottom: 8px; }}
+  .title-icon {{ height: 1.2em; width: 1.2em; object-fit: contain; vertical-align: -0.2em; margin-right: 10px; }}
   .subtitle {{ text-align: center; color: var(--subtitle); margin-bottom: 28px; font-size: 0.9em; }}
   #search {{ display: block; margin: 0 auto 32px auto; width: 100%; max-width: 420px; padding: 10px 14px;
              border-radius: 8px; border: 1px solid var(--input-border); background: var(--input-bg);
@@ -184,7 +185,7 @@ PAGE_TEMPLATE = """<!DOCTYPE html>
 </style>
 </head>
 <body>
-<h1>{title}</h1>
+<h1>{title_icon}{title}</h1>
 <div class="subtitle">{count} services &middot; generated {generated}</div>
 <input type="text" id="search" placeholder="Filter..." oninput="filterCards()">
 <div class="grid" id="grid">
@@ -234,15 +235,19 @@ def render(cards: list[dict], title: str, icon: str | None = None) -> str:
         ))
 
     icon_link = ""
+    title_icon = ""
     if icon:
+        icon_href = html.escape(icon)
         icon_type = _ICON_TYPE_BY_EXT.get(os.path.splitext(icon)[1].lower(), "image/x-icon")
-        icon_link = f'<link rel="icon" type="{icon_type}" href="{html.escape(icon)}">\n'
+        icon_link = f'<link rel="icon" type="{icon_type}" href="{icon_href}">\n'
+        title_icon = f'<img class="title-icon" src="{icon_href}" alt="">'
 
     return PAGE_TEMPLATE.format(
         title=html.escape(title), count=len(cards),
         generated=datetime.datetime.now().strftime("%Y-%m-%d %H:%M"),
         cards="\n".join(card_html_list),
         icon_link=icon_link,
+        title_icon=title_icon,
     )
 
 
