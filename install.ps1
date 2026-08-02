@@ -21,7 +21,7 @@
 
 param(
     [string]$RepoOwner = "tjsyl",
-    [string]$RepoName = "npmpi",
+    [string]$RepoName = "NPMPI",
     [string]$InstallDir = "$env:LOCALAPPDATA\npmpi"
 )
 
