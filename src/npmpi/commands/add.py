@@ -1,10 +1,10 @@
 """
 npmpi add - create a new hostname (+ backend) on one or both sites.
 
-    npmpi add h <name> [-s] <octet> <port>   site "h" only, local, no mirror
-    npmpi add m <name> [-s] <octet> <port>   site "m" only, local, no mirror
-    npmpi add <name> [-s] <octet> <port>     BOTH sites, real backend on each,
-                                              PLUS cross-site mirror of each
+    npmpi add h <node-name> [-s] <octet> <port>   site "h" only, local, no mirror
+    npmpi add m <node-name> [-s] <octet> <port>   site "m" only, local, no mirror
+    npmpi add <node-name> [-s] <octet> <port>     BOTH sites, real backend on each,
+                                                   PLUS cross-site mirror of each
 
 -s / --https selects https as the backend scheme; omitted = http.
 
@@ -28,7 +28,7 @@ def register(subparsers) -> None:
         description=__doc__,
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    p.add_argument("args", nargs="+", metavar="[SITE] NAME OCTET PORT",
+    p.add_argument("args", nargs="+", metavar="[SITE] NODE-NAME OCTET PORT",
                     help="e.g. 'h test 99 8888' or 'test 99 8888' (both sites)")
     p.add_argument("-s", "--https", action="store_true", help="Use https to the backend (default: http)")
     p.set_defaults(func=cmd_add)
@@ -42,7 +42,7 @@ def _split_args(raw_args: list[str], site_keys: list[str]) -> tuple[str | None, 
         name, octet, port = raw_args
         return None, name, octet, port
     raise SystemExit(
-        f"npmpi add: expected '[SITE] NAME OCTET PORT' (SITE one of {site_keys}), "
+        f"npmpi add: expected '[SITE] NODE-NAME OCTET PORT' (SITE one of {site_keys}), "
         f"got: {' '.join(raw_args)}\nRun `npmpi -e` for full syntax and examples."
     )
 

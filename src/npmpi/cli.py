@@ -20,7 +20,7 @@ def _extended_help() -> str:
     sections = [
         (
             "add",
-            "npmpi add [SITE] NAME [-s|--https] OCTET PORT",
+            "npmpi add [SITE] NODE-NAME [-s|--https] OCTET PORT",
             "Create a new hostname (+ backend). Safe to re-run - an already-existing "
             "hostname is reported and skipped, not an error.",
             [
@@ -28,7 +28,7 @@ def _extended_help() -> str:
                           "the hostname on that site only, no cross-site mirroring. Omit it "
                           "entirely to create a real backend on BOTH sites at once, PLUS "
                           "cross-mirror each onto the other site's Pi-hole(s)/NPM."),
-                ("NAME", "The hostname prefix, e.g. 'test' -> test.<site's domain>."),
+                ("NODE-NAME", "The hostname prefix, e.g. 'test' -> test.example.com."),
                 ("-s / --https", "Use https to the backend. Omit this flag for http (the default)."),
                 ("OCTET", "Last octet of the backend IP - combined with the site's configured "
                            "IP prefix, e.g. prefix 10.0.1. + octet 99 -> 10.0.1.99."),
@@ -36,12 +36,12 @@ def _extended_help() -> str:
             ],
             [
                 "npmpi add m test 99 8888",
-                "  -> test.<m's domain>, http, backend <m's ip prefix>99:8888, site 'm' only.",
+                "  -> test.m.example.com, http, backend 10.0.2.99:8888, site 'm' only.",
                 "npmpi add h test -s 99 8888",
-                "  -> test.<h's domain>, https, backend <h's ip prefix>99:8888, site 'h' only.",
+                "  -> test.home.example.com, https, backend 10.0.1.99:8888, site 'h' only.",
                 "npmpi add test -s 99 8888",
-                "  -> test.<h's domain> AND test.<m's domain>, https, backend ...99:8888 on",
-                "     EACH site's own network, plus each cross-mirrored onto the other site.",
+                "  -> test.home.example.com AND test.m.example.com, https, backend ...99:8888",
+                "     on EACH site's own network, plus each cross-mirrored onto the other site.",
             ],
         ),
         (
