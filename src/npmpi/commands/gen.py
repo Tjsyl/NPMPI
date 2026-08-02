@@ -156,8 +156,10 @@ PAGE_TEMPLATE = """<!DOCTYPE html>
   * {{ box-sizing: border-box; }}
   body {{ margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
           background: var(--bg); color: var(--fg); padding: 40px 24px; }}
-  h1 {{ text-align: center; font-weight: 600; margin-bottom: 8px; }}
-  .title-icon {{ height: 1.2em; width: 1.2em; object-fit: contain; vertical-align: -0.2em; margin-right: 10px; }}
+  .header-row {{ display: flex; align-items: center; justify-content: center; gap: 20px;
+                 flex-wrap: wrap; margin-bottom: 8px; }}
+  h1 {{ text-align: center; font-weight: 600; margin: 0; }}
+  .title-icon {{ height: 150px; width: 150px; object-fit: contain; }}
   .subtitle {{ text-align: center; color: var(--subtitle); margin-bottom: 28px; font-size: 0.9em; }}
   #search {{ display: block; margin: 0 auto 32px auto; width: 100%; max-width: 420px; padding: 10px 14px;
              border-radius: 8px; border: 1px solid var(--input-border); background: var(--input-bg);
@@ -185,7 +187,7 @@ PAGE_TEMPLATE = """<!DOCTYPE html>
 </style>
 </head>
 <body>
-<h1>{title_icon}{title}</h1>
+<div class="header-row">{title_icon}<h1>{title}</h1></div>
 <div class="subtitle">{count} services &middot; generated {generated}</div>
 <input type="text" id="search" placeholder="Filter..." oninput="filterCards()">
 <div class="grid" id="grid">
