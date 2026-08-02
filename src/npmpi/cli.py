@@ -15,9 +15,8 @@ from npmpi.text import PLAIN_HELP
 COMMANDS = [add, sync, gen, migrate, setup]
 
 
-def _extended_help() -> str:
-    lines = ["npmpi - full command reference\n"]
-    sections = [
+def _help_sections() -> list[tuple]:
+    return [
         (
             "add",
             "npmpi add [SITE] NODE-NAME [-s|--https] OCTET PORT",
@@ -107,28 +106,65 @@ def _extended_help() -> str:
             "npmpi setup",
             "Interactive setup wizard: how many sites, each site's domain/IP scheme/"
             "Pi-hole(s)/NPM, then collects and encrypts credentials into one combined "
-            "file. Re-run any time - e.g. after a password change or an IP change.",
-            [],
+            "file. Re-run any time - e.g. after a password change or an IP change. Made "
+            "a typo in one field? You don't have to redo the whole thing - see the "
+            "targeted-fix options below.",
+            [
+                ("--fix", "List everything individually fixable, with its current value, "
+                           "so you know exactly which flag below to run."),
+                ("--paths", "Show where config.json and credentials.dat live on disk, then exit."),
+                ("--npm [SITE]", "Re-run just one site's NPM config (url/email/password). "
+                                  "If you have more than one site and omit SITE, you're "
+                                  "prompted which one."),
+                ("--pihole N [url]", "Re-run just Pi-hole #N's config. Pi-holes are numbered "
+                                      "continuously across ALL sites in the order they're "
+                                      "configured (not restarted per site) - e.g. site h's two "
+                                      "Pi-holes are #1/#2 and site m's first is #3; run `npmpi "
+                                      "setup --fix` to see the current numbering. Add the "
+                                      "literal word 'url' after N to fix only its URL and leave "
+                                      "the name/password untouched."),
+            ],
             [
                 "npmpi setup",
                 "  -> runs (or re-runs) the full interactive wizard.",
+                "npmpi setup --fix",
+                "  -> lists every site's NPM and every numbered Pi-hole with its current value.",
+                "npmpi setup --npm h",
+                "  -> re-asks just site h's NPM url/email/password.",
+                "npmpi setup --pihole 2 url",
+                "  -> re-asks just Pi-hole #2's URL, nothing else.",
             ],
         ),
     ]
-    for name, syntax, desc, options, examples in sections:
-        lines.append(f"--- {name} ---")
-        lines.append(f"  {syntax}\n")
-        lines.append(f"  {desc}\n")
-        if options:
-            lines.append("  Options:")
-            for opt_name, opt_desc in options:
-                lines.append(f"    {opt_name}")
-                lines.append(f"        {opt_desc}")
-            lines.append("")
-        lines.append("  Examples:")
-        for ex in examples:
-            lines.append(f"    {ex}")
+
+
+def _render_section(section: tuple) -> list[str]:
+    name, syntax, desc, options, examples = section
+    lines = [f"--- {name} ---", f"  {syntax}\n", f"  {desc}\n"]
+    if options:
+        lines.append("  Options:")
+        for opt_name, opt_desc in options:
+            lines.append(f"    {opt_name}")
+            lines.append(f"        {opt_desc}")
         lines.append("")
+    lines.append("  Examples:")
+    for ex in examples:
+        lines.append(f"    {ex}")
+    lines.append("")
+    return lines
+
+
+def _extended_help() -> str:
+    lines = ["npmpi - full command reference\n"]
+    for section in _help_sections():
+        lines.extend(_render_section(section))
+    return "\n".join(lines)
+
+
+def _setup_help_section() -> str:
+    setup_section = next(s for s in _help_sections() if s[0] == "setup")
+    lines = ["npmpi setup - full syntax and examples\n"]
+    lines.extend(_render_section(setup_section))
     return "\n".join(lines)
 
 
@@ -165,6 +201,10 @@ def main(argv: list[str] | None = None) -> None:
 
     cmd_name = argv[0]
     rest = argv[1:]
+
+    if cmd_name == "setup" and rest and rest[0] in ("-h", "--help"):
+        print(_setup_help_section())
+        return
 
     import argparse
     parser = argparse.ArgumentParser(prog="npmpi", add_help=False)

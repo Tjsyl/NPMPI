@@ -164,7 +164,27 @@ after rebuilding a broken container). Before touching anything, it:
 ### `npmpi setup`
 
 Re-run any time to change the number of sites, IP schemes, or
-credentials.
+credentials. Made one mistake in one field? You don't have to redo the
+whole wizard:
+
+```
+npmpi setup --fix              List everything fixable, with its current value
+npmpi setup --paths            Show where config.json / credentials.dat live
+npmpi setup --npm [SITE]       Re-run just one site's NPM config
+npmpi setup --pihole N [url]   Re-run just Pi-hole #N's config
+```
+
+Pi-holes are numbered continuously across **all** sites, in the order
+they're configured - not restarted per site. So if site `h` has two
+Pi-holes and site `m` has one, they're `#1`/`#2`/`#3`, not `#1`/`#2`
+for `h` and a separate `#1` for `m`. Run `npmpi setup --fix` any time to
+see the current numbering and every current value. Add the word `url`
+after the number (e.g. `npmpi setup --pihole 2 url`) to fix only that
+Pi-hole's URL and leave its name/password untouched.
+
+`npmpi setup -h` shows just this section (syntax + examples for
+`setup` only); `npmpi -e` includes it as part of the full command
+reference.
 
 ## Config file
 
