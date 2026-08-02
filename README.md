@@ -11,32 +11,46 @@ Replaces: `addhost.py`, `addhostm.py`, `addhome.py`, `addm.py`,
 ## Install
 
 npmpi ships as a **standalone `npmpi.exe`** - no Python, no pip, nothing
-else required on the machine you run it on.
+else required on the machine you run it on. Every version tag builds
+both forms below automatically via GitHub Actions and attaches them to
+that release.
 
-**Option A - installer script (recommended):**
+**Option A - self-extracting installer (recommended):**
+
+Download `npmpi-setup.exe` from the [Releases page](../../releases) and
+run it. Installs to `%LOCALAPPDATA%\npmpi`, adds that folder to your
+user PATH, and registers a normal uninstaller in *Add/Remove Programs*.
+No admin rights needed (per-user install, no UAC prompt). Uninstalling
+never touches `~/.npmpi/config.json` or `credentials.dat` - those are
+managed entirely by `npmpi setup`.
+
+**Option B - installer script:**
 
 ```powershell
 .\install.ps1
 ```
 
-Downloads the latest `npmpi.exe` from this repo's GitHub Releases (built
-automatically by CI on every version tag) into `%LOCALAPPDATA%\npmpi` and
-adds that folder to your user PATH, so `npmpi` works from any terminal -
-cmd, PowerShell, Windows Terminal. Safe to re-run any time to grab an
-update.
+Downloads the latest `npmpi.exe` (not the installer - just the raw exe)
+from this repo's GitHub Releases into `%LOCALAPPDATA%\npmpi` and adds
+that folder to your user PATH, so `npmpi` works from any terminal - cmd,
+PowerShell, Windows Terminal. Safe to re-run any time to grab an update.
+No uninstaller entry (just delete the folder and PATH entry yourself if
+you ever want it gone) - use Option A if you'd rather have a proper
+uninstall path.
 
-**Option B - manual download:**
+**Option C - manual download:**
 
 Grab `npmpi.exe` from the [Releases page](../../releases) yourself and
 put it anywhere on your PATH.
 
-> The exe isn't code-signed (that needs a paid certificate), so Windows
-> SmartScreen/Defender will likely flag it as unrecognized the first time
-> you run it. That's expected for an indie tool, not a sign anything's
-> wrong - click "More info" -> "Run anyway". If you'd rather avoid that
-> prompt entirely, build it yourself locally instead (see below).
+> Neither the exe nor the installer is code-signed (that needs a paid
+> certificate), so Windows SmartScreen/Defender will likely flag it as
+> unrecognized the first time you run it. That's expected for an indie
+> tool, not a sign anything's wrong - click "More info" -> "Run anyway".
+> If you'd rather avoid that prompt entirely, build it yourself locally
+> instead (see below).
 
-**Option C - build it yourself:**
+**Option D - build the exe yourself:**
 
 ```powershell
 python -m pip install -e .[build]
@@ -44,10 +58,27 @@ python -m pip install -e .[build]
 ```
 
 Produces `dist\npmpi.exe` using PyInstaller, built locally so there's
-nothing to trust but your own machine. Must be run on Windows (PyInstaller
-doesn't cross-compile).
+nothing to trust but your own machine. Must be run on Windows
+(PyInstaller doesn't cross-compile). If `python` errors with "Python was
+not found..." even though you've installed it, that's the Windows Store's
+App Execution Alias stub shadowing the real thing - `build_exe.ps1`
+auto-detects and falls back to the `py` launcher, but if both fail, see
+the error message it prints for the fix (reinstall with PATH checked +
+new terminal window, or disable the alias under *Settings > Apps >
+Advanced app settings > App execution aliases*).
 
-**Option D - run from source (for development):**
+**Option E - build the installer yourself:**
+
+```powershell
+.\build_installer.ps1 -Version 0.1.8
+```
+
+Requires [Inno Setup 6](https://jrsoftware.org/isinfo.php) installed.
+Builds `dist\npmpi.exe` first, then compiles `npmpi_installer.iss` into
+`installer_output\npmpi-setup.exe`. `-Version` is just cosmetic (shown in
+Add/Remove Programs) - omit it and it defaults to `0.0.0-dev`.
+
+**Option F - run from source (for development):**
 
 ```powershell
 pip install -e .
@@ -76,8 +107,9 @@ password to remember, but also not portable to another machine (see
 [Credential storage](#credential-storage) below). Config lives in a
 plain JSON file you can hand-edit afterward.
 
-Re-run `npmpi setup` any time - e.g. after a password change or an IP
-scheme change.
+Made a typo in one field later on (wrong IP, missing port, bad URL)?
+You don't have to redo the whole wizard - see `npmpi setup --fix` under
+[`npmpi setup`](#npmpi-setup) below.
 
 ## Commands
 
@@ -131,11 +163,21 @@ npmpi gen [--output PATH] [--title TEXT]
 Regenerates the static HTML dashboard listing every enabled proxy host on
 a site's NPM - one clickable card per host, alphabetically sorted, with a
 client-side search box. Self-contained HTML (no external CSS/JS), so it
-works fine served from a purely offline/LAN web server.
+works fine served from a purely offline/LAN web server. It reads live
+from NPM every time it runs - nothing about the dashboard's contents is
+frozen at setup time, only *which* site/path/title to use is configured
+once.
+
+The output path **must include the filename** (e.g.
+`\\server\share\home-services\index.html`), not just a folder. If it's
+given a path ending in a folder separator by mistake, it writes
+`index.html` inside that folder rather than erroring.
 
 If `gen` was skipped during `npmpi setup`, running `npmpi gen` walks you
 through picking a site/output path/title on the spot and saves the
-choice to `config.json` for next time.
+choice to `config.json` for next time. Already configured but need to
+change the site/path/title? `npmpi setup --gen` re-runs just that (see
+[`npmpi setup`](#npmpi-setup) below) instead of the whole wizard.
 
 ### `npmpi migrate`
 
@@ -172,6 +214,7 @@ npmpi setup --fix              List everything fixable, with its current value
 npmpi setup --paths            Show where config.json / credentials.dat live
 npmpi setup --npm [SITE]       Re-run just one site's NPM config
 npmpi setup --pihole N [url]   Re-run just Pi-hole #N's config
+npmpi setup --gen              Re-run just the dashboard (gen) config
 ```
 
 Pi-holes are numbered continuously across **all** sites, in the order
@@ -185,6 +228,23 @@ Pi-hole's URL and leave its name/password untouched.
 `npmpi setup -h` shows just this section (syntax + examples for
 `setup` only); `npmpi -e` includes it as part of the full command
 reference.
+
+## Uninstalling
+
+If you installed via **Option A** (`npmpi-setup.exe`): uninstall through
+*Add/Remove Programs* (or *Apps* in Windows Settings) like any normal
+app - this removes `npmpi.exe` and the PATH entry it added, and leaves
+`~/.npmpi/config.json`/`credentials.dat` in place.
+
+If you installed via **Option B/C** (`install.ps1` or a manual download):
+there's no registered uninstaller - delete `%LOCALAPPDATA%\npmpi` and
+remove that folder from your user PATH (System Properties -> Environment
+Variables, or `[Environment]::SetEnvironmentVariable` in PowerShell)
+yourself.
+
+Either way, `~/.npmpi/config.json` and `~/.npmpi/credentials.dat` are
+never touched automatically - delete them yourself if you want a
+completely clean slate.
 
 ## Config file
 
@@ -205,22 +265,29 @@ prompts, ever. If you ever need npmpi on a different machine, run
 
 ## Requirements
 
-To **run** the `npmpi.exe` release build: Windows only (credential
-storage is DPAPI-based). Nothing else - no Python needed.
+To **run** the `npmpi.exe`/`npmpi-setup.exe` release build: Windows
+only (credential storage is DPAPI-based). Nothing else - no Python
+needed.
 
-To **build** it yourself: Python 3.10+ and `pip install -e .[build]`
+To **build the exe** yourself: Python 3.10+ and `pip install -e .[build]`
 (pulls in PyInstaller).
+
+To **build the installer** yourself: the above, plus
+[Inno Setup 6](https://jrsoftware.org/isinfo.php).
 
 ## What changed from the old scripts
 
-- 12 separate `.py`/`.cmd`/`.ps1` files → one standalone `npmpi.exe`.
+- 12 separate `.py`/`.cmd`/`.ps1` files → one standalone `npmpi.exe`
+  (or `npmpi-setup.exe` for a proper installed/uninstallable copy).
 - 5 separate DPAPI credential files → 1 combined file.
 - Hand-maintained `PATH`/wrapper `.cmd` files → a real command on PATH,
   no Python installation required to run it at all.
 - Domain suffix, IP prefix, NPM/Pi-hole URLs → nothing is hardcoded in
   the code anywhere; all of it is defined interactively in `npmpi setup`
   (or by hand-editing the commented `config.json` it writes) and re-runnable
-  any time IP schemes or passwords change.
+  any time IP schemes or passwords change - including one field at a time
+  via `npmpi setup --fix`/`--npm`/`--pihole`/`--gen`, without redoing the
+  whole wizard.
 - `synchome2m.py` + `syncm2home.py` → one `npmpi sync` (does both
   directions).
 - `addhost*`/`addhome`/`addm` → one `npmpi add`, with the site letter
