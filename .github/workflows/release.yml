@@ -24,6 +24,9 @@ jobs:
           python -m pip install --upgrade pip pyinstaller
           python -m pip install -e .
 
+      - name: Install UPX
+        run: choco install upx -y --no-progress
+
       - name: Build one-file exe
         run: |
           pyinstaller --onefile --name npmpi --console --paths src src/npmpi/__main__.py

@@ -67,6 +67,13 @@ the error message it prints for the fix (reinstall with PATH checked +
 new terminal window, or disable the alias under *Settings > Apps >
 Advanced app settings > App execution aliases*).
 
+The script also compresses the exe with [UPX](https://upx.github.io/)
+(downloaded once and cached under `%LOCALAPPDATA%\npmpi-build-tools`) to
+cut its size down significantly. UPX-packed executables are occasionally
+flagged by antivirus (a false-positive risk, not an actual issue - some
+malware also happens to use UPX) - if that ever bites you, rebuild with
+`.\build_exe.ps1 -NoUpx` for a plain, larger exe.
+
 **Option E - build the installer yourself:**
 
 ```powershell

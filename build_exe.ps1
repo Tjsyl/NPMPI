@@ -20,7 +20,19 @@
   Also invokes PyInstaller as `python -m PyInstaller` rather than the bare
   `pyinstaller` command, so it doesn't matter whether pip's Scripts folder
   is on PATH.
+
+  Also compresses the built exe with UPX (downloaded once and cached under
+  %LOCALAPPDATA%\npmpi-build-tools) to cut its size down significantly. If
+  you ever see the exe get flagged by antivirus and want to rule UPX out,
+  re-run with -NoUpx.
+
+.PARAMETER NoUpx
+  Skip UPX compression and build a plain (larger) exe.
 #>
+
+param(
+    [switch]$NoUpx
+)
 
 $ErrorActionPreference = "Stop"
 
@@ -56,14 +68,55 @@ off the python.exe / python3.exe entries), then open a new window.
 }
 Write-Host "Using Python via '$py'" -ForegroundColor DarkGray
 
+function Get-UpxDir {
+    $upxVersion = "5.2.0"
+    $cacheRoot = Join-Path $env:LOCALAPPDATA "npmpi-build-tools"
+    $upxDir = Join-Path $cacheRoot "upx-$upxVersion-win64"
+    $upxExe = Join-Path $upxDir "upx.exe"
+
+    if (Test-Path $upxExe) {
+        return $upxDir
+    }
+
+    Write-Host "Downloading UPX $upxVersion (one-time, cached for future builds)..." -ForegroundColor DarkGray
+    try {
+        New-Item -ItemType Directory -Force -Path $cacheRoot | Out-Null
+        $zipPath = Join-Path $cacheRoot "upx-$upxVersion-win64.zip"
+        $url = "https://github.com/upx/upx/releases/download/v$upxVersion/upx-$upxVersion-win64.zip"
+        Invoke-WebRequest -Uri $url -OutFile $zipPath -UseBasicParsing
+        Expand-Archive -Path $zipPath -DestinationPath $cacheRoot -Force
+        Remove-Item $zipPath -Force
+    } catch {
+        Write-Host "Could not download UPX ($_) - building without compression." -ForegroundColor Yellow
+        return $null
+    }
+
+    if (Test-Path $upxExe) {
+        return $upxDir
+    }
+    Write-Host "UPX download didn't produce upx.exe where expected - building without compression." -ForegroundColor Yellow
+    return $null
+}
+
 Write-Host "=== building npmpi.exe ===" -ForegroundColor Cyan
 
 & $py -m pip install --upgrade pip pyinstaller -q
 & $py -m pip install -e . -q
 
-& $py -m PyInstaller --onefile --name npmpi --console `
-    --paths src `
-    src/npmpi/__main__.py
+$pyinstallerArgs = @("--onefile", "--name", "npmpi", "--console", "--paths", "src", "src/npmpi/__main__.py")
+
+if ($NoUpx) {
+    Write-Host "Skipping UPX (-NoUpx passed)" -ForegroundColor DarkGray
+} else {
+    $upxDir = Get-UpxDir
+    if ($upxDir) {
+        Write-Host "Compressing with UPX from $upxDir" -ForegroundColor DarkGray
+        $pyinstallerArgs = @("--upx-dir", $upxDir) + $pyinstallerArgs
+    }
+}
+
+& $py -m PyInstaller @pyinstallerArgs
 
 Write-Host "`nBuilt: dist\npmpi.exe" -ForegroundColor Green
 Write-Host "Copy it anywhere on PATH, or run install.ps1 to fetch the CI-built release exe from GitHub instead."
+Write-Host "If antivirus flags this build, re-run with .\build_exe.ps1 -NoUpx to rule out UPX compression."
