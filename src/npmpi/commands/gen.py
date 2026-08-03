@@ -118,10 +118,19 @@ def build_cards(hosts: list[dict]) -> list[dict]:
         scheme = "https" if h.get("certificate_id", 0) else "http"
         primary = domains[0]
         aliases = domains[1:]
+
+        # The raw backend NPM actually forwards to - bypasses the reverse
+        # proxy entirely (e.g. for direct/internal access or debugging).
+        fwd_scheme = h.get("forward_scheme") or "http"
+        fwd_host = h.get("forward_host")
+        fwd_port = h.get("forward_port")
+        destination_url = f"{fwd_scheme}://{fwd_host}:{fwd_port}" if fwd_host and fwd_port else None
+
         cards.append({
             "primary": primary,
             "url": f"{scheme}://{primary}",
             "aliases": [{"name": a, "url": f"{scheme}://{a}"} for a in aliases],
+            "destination_url": destination_url,
         })
     cards.sort(key=lambda c: c["primary"].lower())
     return cards
@@ -139,7 +148,7 @@ PAGE_TEMPLATE = """<!DOCTYPE html>
     --bg: #14161a; --fg: #e6e6e6; --subtitle: #888;
     --input-bg: #1e2126; --input-border: #333; --accent: #5a8dee;
     --card-bg: #1e2126; --card-border: #2a2d33;
-    --scheme-https-bg: #1f4d2e; --scheme-https-fg: #7be3a0;
+    --scheme-https-bg: #4d1f1f; --scheme-https-fg: #e37b7b;
     --scheme-http-bg: #4d3a1f; --scheme-http-fg: #e3b87b;
     --alias-fg: #999; --empty-fg: #666; --footer-fg: #555;
   }}
@@ -148,7 +157,7 @@ PAGE_TEMPLATE = """<!DOCTYPE html>
       --bg: #f5f6f8; --fg: #1a1a1a; --subtitle: #666;
       --input-bg: #ffffff; --input-border: #ccc; --accent: #2f5fd6;
       --card-bg: #ffffff; --card-border: #e0e2e6;
-      --scheme-https-bg: #d9f2e3; --scheme-https-fg: #1f7a44;
+      --scheme-https-bg: #f2d9d9; --scheme-https-fg: #7a1f1f;
       --scheme-http-bg: #f2e6d9; --scheme-http-fg: #8a5a1f;
       --alias-fg: #666; --empty-fg: #999; --footer-fg: #999;
     }}
@@ -164,10 +173,24 @@ PAGE_TEMPLATE = """<!DOCTYPE html>
   .header-text {{ text-align: left; }}
   .header-text h1 {{ text-align: left; margin: 0 0 4px; }}
   .header-text .subtitle {{ text-align: left; margin: 0; }}
-  #search {{ display: block; margin: 0 auto 32px auto; width: 100%; max-width: 420px; padding: 10px 14px;
+  .controls-row {{ display: flex; align-items: center; justify-content: center; gap: 24px;
+                    max-width: 620px; margin: 0 auto 32px auto; flex-wrap: wrap; }}
+  #search {{ display: block; flex: 1 1 320px; max-width: 420px; padding: 10px 14px;
              border-radius: 8px; border: 1px solid var(--input-border); background: var(--input-bg);
              color: var(--fg); font-size: 1em; }}
   #search:focus {{ outline: none; border-color: var(--accent); }}
+  .toggle-stack {{ display: flex; flex-direction: column; gap: 10px; flex-shrink: 0; }}
+  .toggle {{ display: flex; align-items: center; gap: 8px; font-size: 0.8em; color: var(--subtitle);
+             user-select: none; cursor: pointer; }}
+  .toggle input {{ display: none; }}
+  .toggle .slider {{ width: 36px; height: 20px; border-radius: 999px; background: var(--input-border);
+                      position: relative; flex-shrink: 0; transition: background 0.15s; }}
+  .toggle .slider::before {{ content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px;
+                              border-radius: 50%; background: #fff; transition: transform 0.15s; }}
+  .toggle input:checked + .slider {{ background: var(--accent); }}
+  .toggle input:checked + .slider::before {{ transform: translateX(16px); }}
+  .toggle input:disabled + .slider {{ opacity: 0.4; }}
+  .toggle:has(input:disabled) {{ cursor: default; opacity: 0.6; }}
   .grid {{ display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px;
            max-width: 1100px; margin: 0 auto; }}
   .card {{ position: relative; background: var(--card-bg); border: 1px solid var(--card-border);
@@ -185,13 +208,32 @@ PAGE_TEMPLATE = """<!DOCTYPE html>
   .aliases a {{ position: relative; z-index: 1; display: block; font-size: 0.82em; color: var(--alias-fg);
                 text-decoration: none; margin-top: 4px; }}
   .aliases a:hover {{ color: var(--accent); }}
+  .destination {{ position: relative; z-index: 1; display: none; margin-top: 8px; padding-top: 8px;
+                   border-top: 1px solid var(--card-border); font-size: 0.78em; word-break: break-word; }}
+  body.show-destinations .destination {{ display: block; }}
+  .destination a {{ position: relative; z-index: 1; color: var(--alias-fg); text-decoration: none;
+                     pointer-events: none; cursor: default; }}
+  body.clickable-destinations .destination a {{ color: var(--accent); text-decoration: underline;
+                                                  pointer-events: auto; cursor: pointer; }}
   .empty {{ text-align: center; color: var(--empty-fg); margin-top: 60px; }}
   footer {{ text-align: center; color: var(--footer-fg); font-size: 0.8em; margin-top: 48px; }}
 </style>
 </head>
 <body>
 {header_block}
+<div class="controls-row">
 <input type="text" id="search" placeholder="Filter..." oninput="filterCards()">
+<div class="toggle-stack">
+  <label class="toggle">
+    <input type="checkbox" id="toggle-dest" onchange="toggleDestinations()">
+    <span class="slider"></span>Show Destinations
+  </label>
+  <label class="toggle">
+    <input type="checkbox" id="toggle-clickable" disabled onchange="toggleClickable()">
+    <span class="slider"></span>Clickable Destinations
+  </label>
+</div>
+</div>
 <div class="grid" id="grid">
 {cards}
 </div>
@@ -209,13 +251,26 @@ function filterCards() {{
   }});
   document.getElementById('empty').style.display = visible === 0 ? 'block' : 'none';
 }}
+function toggleDestinations() {{
+  var shown = document.getElementById('toggle-dest').checked;
+  document.body.classList.toggle('show-destinations', shown);
+  var clickableToggle = document.getElementById('toggle-clickable');
+  clickableToggle.disabled = !shown;
+  if (!shown) {{
+    clickableToggle.checked = false;
+    document.body.classList.remove('clickable-destinations');
+  }}
+}}
+function toggleClickable() {{
+  document.body.classList.toggle('clickable-destinations', document.getElementById('toggle-clickable').checked);
+}}
 </script>
 </body>
 </html>
 """
 
 CARD_TEMPLATE = """  <div class="card" data-search="{search}">
-    <a class="primary" href="{url}" target="_blank" rel="noopener">{name}<span class="scheme-badge scheme-{scheme}">{scheme_label}</span></a>{aliases_html}
+    <a class="primary" href="{url}" target="_blank" rel="noopener">{name}<span class="scheme-badge scheme-{scheme}">{scheme_label}</span></a>{aliases_html}{destination_html}
   </div>"""
 
 ALIAS_TEMPLATE = """<a href="{url}" target="_blank" rel="noopener">{name}</a>"""
@@ -232,10 +287,17 @@ def render(cards: list[dict], title: str, icon: str | None = None) -> str:
                 for a in c["aliases"]
             )
             aliases_html = f'<div class="aliases">{alias_links}</div>'
+
+        destination_html = ""
+        if c.get("destination_url"):
+            dest_url = html.escape(c["destination_url"])
+            destination_html = f'<div class="destination"><a href="{dest_url}" target="_blank" rel="noopener">{dest_url}</a></div>'
+
         search_terms = " ".join([c["primary"]] + [a["name"] for a in c["aliases"]]).lower()
         card_html_list.append(CARD_TEMPLATE.format(
             search=html.escape(search_terms), url=c["url"], name=html.escape(c["primary"]),
             scheme=scheme, scheme_label=scheme.upper(), aliases_html=aliases_html,
+            destination_html=destination_html,
         ))
 
     escaped_title = html.escape(title)
