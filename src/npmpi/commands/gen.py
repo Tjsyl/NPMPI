@@ -251,6 +251,12 @@ function filterCards() {{
   }});
   document.getElementById('empty').style.display = visible === 0 ? 'block' : 'none';
 }}
+function saveToggleState() {{
+  try {{
+    localStorage.setItem('npmpi-gen-show-destinations', document.getElementById('toggle-dest').checked);
+    localStorage.setItem('npmpi-gen-clickable-destinations', document.getElementById('toggle-clickable').checked);
+  }} catch (e) {{}}
+}}
 function toggleDestinations() {{
   var shown = document.getElementById('toggle-dest').checked;
   document.body.classList.toggle('show-destinations', shown);
@@ -260,10 +266,27 @@ function toggleDestinations() {{
     clickableToggle.checked = false;
     document.body.classList.remove('clickable-destinations');
   }}
+  saveToggleState();
 }}
 function toggleClickable() {{
   document.body.classList.toggle('clickable-destinations', document.getElementById('toggle-clickable').checked);
+  saveToggleState();
 }}
+function initToggleState() {{
+  var showSaved = false, clickableSaved = false;
+  try {{
+    showSaved = localStorage.getItem('npmpi-gen-show-destinations') === 'true';
+    clickableSaved = localStorage.getItem('npmpi-gen-clickable-destinations') === 'true';
+  }} catch (e) {{}}
+  var destToggle = document.getElementById('toggle-dest');
+  var clickableToggle = document.getElementById('toggle-clickable');
+  destToggle.checked = showSaved;
+  clickableToggle.checked = showSaved && clickableSaved;
+  clickableToggle.disabled = !showSaved;
+  document.body.classList.toggle('show-destinations', showSaved);
+  document.body.classList.toggle('clickable-destinations', showSaved && clickableSaved);
+}}
+initToggleState();
 </script>
 </body>
 </html>
