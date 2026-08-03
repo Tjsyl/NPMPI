@@ -74,8 +74,9 @@ def _help_sections() -> list[tuple]:
                  "Drop any file named *icon.* (e.g. favicon.ico, icon.png, tab-icon.svg) "
                  "in the same folder as the generated index.html - picked up automatically "
                  "on the next run, no config needed. Used as both the browser tab icon and "
-                 "a 72x72 logo centered between the title and the services/generated-date "
-                 "line. If none found, just the title shows, same as before. Case-"
+                 "a 72x72 logo to the left of the title, vertically centered against the "
+                 "title + services/generated-date lines together. If none found, the title "
+                 "and subtitle just show centered on their own, same as before. Case-"
                  "insensitive; if more than one matches, .ico wins, then .png/.svg, then "
                  "anything else."),
             ],

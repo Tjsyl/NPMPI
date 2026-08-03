@@ -157,8 +157,13 @@ PAGE_TEMPLATE = """<!DOCTYPE html>
   body {{ margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
           background: var(--bg); color: var(--fg); padding: 40px 24px; }}
   h1 {{ text-align: center; font-weight: 600; margin-bottom: 4px; }}
-  .title-icon {{ display: block; height: 72px; width: 72px; object-fit: contain; margin: 8px auto 12px; }}
   .subtitle {{ text-align: center; color: var(--subtitle); margin-bottom: 28px; font-size: 0.9em; }}
+  .header-row {{ display: flex; align-items: center; justify-content: center; gap: 16px;
+                 flex-wrap: wrap; margin-bottom: 28px; }}
+  .title-icon {{ height: 72px; width: 72px; object-fit: contain; flex-shrink: 0; }}
+  .header-text {{ text-align: left; }}
+  .header-text h1 {{ text-align: left; margin: 0 0 4px; }}
+  .header-text .subtitle {{ text-align: left; margin: 0; }}
   #search {{ display: block; margin: 0 auto 32px auto; width: 100%; max-width: 420px; padding: 10px 14px;
              border-radius: 8px; border: 1px solid var(--input-border); background: var(--input-bg);
              color: var(--fg); font-size: 1em; }}
@@ -185,8 +190,7 @@ PAGE_TEMPLATE = """<!DOCTYPE html>
 </style>
 </head>
 <body>
-<h1>{title}</h1>
-{title_icon}<div class="subtitle">{count} services &middot; generated {generated}</div>
+{header_block}
 <input type="text" id="search" placeholder="Filter..." oninput="filterCards()">
 <div class="grid" id="grid">
 {cards}
@@ -234,20 +238,34 @@ def render(cards: list[dict], title: str, icon: str | None = None) -> str:
             scheme=scheme, scheme_label=scheme.upper(), aliases_html=aliases_html,
         ))
 
+    escaped_title = html.escape(title)
+    generated = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+    subtitle_text = f"{len(cards)} services &middot; generated {generated}"
+
     icon_link = ""
-    title_icon = ""
     if icon:
         icon_href = html.escape(icon)
         icon_type = _ICON_TYPE_BY_EXT.get(os.path.splitext(icon)[1].lower(), "image/x-icon")
         icon_link = f'<link rel="icon" type="{icon_type}" href="{icon_href}">\n'
-        title_icon = f'<img class="title-icon" src="{icon_href}" alt="">\n'
+        # Icon to the left of a left-aligned title+subtitle stack, vertically
+        # centered against that two-line block (align-items: center on the
+        # flex row) - not a standalone centered image, and not inline with
+        # just one of the two lines.
+        header_block = (
+            f'<div class="header-row">'
+            f'<img class="title-icon" src="{icon_href}" alt="">'
+            f'<div class="header-text"><h1>{escaped_title}</h1>'
+            f'<div class="subtitle">{subtitle_text}</div></div>'
+            f'</div>'
+        )
+    else:
+        header_block = f'<h1>{escaped_title}</h1>\n<div class="subtitle">{subtitle_text}</div>'
 
     return PAGE_TEMPLATE.format(
-        title=html.escape(title), count=len(cards),
-        generated=datetime.datetime.now().strftime("%Y-%m-%d %H:%M"),
+        title=escaped_title,
         cards="\n".join(card_html_list),
         icon_link=icon_link,
-        title_icon=title_icon,
+        header_block=header_block,
     )
 
 
