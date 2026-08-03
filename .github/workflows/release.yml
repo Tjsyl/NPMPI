@@ -25,7 +25,30 @@ jobs:
           python -m pip install -e .
 
       - name: Install UPX
-        run: choco install upx -y --no-progress
+        shell: pwsh
+        run: |
+          # Downloaded directly from UPX's own GitHub release rather than via
+          # choco - the Chocolatey community feed is prone to transient 503s,
+          # which silently skip compression without failing the build.
+          $upxUrl = "https://github.com/upx/upx/releases/download/v5.2.0/upx-5.2.0-win64.zip"
+          $installed = $false
+          for ($i = 1; $i -le 3; $i++) {
+            try {
+              Invoke-WebRequest -Uri $upxUrl -OutFile upx.zip -UseBasicParsing
+              Expand-Archive -Path upx.zip -DestinationPath upx_extracted -Force
+              $upxDir = Get-ChildItem -Path upx_extracted -Directory | Select-Object -First 1
+              Add-Content -Path $env:GITHUB_PATH -Value $upxDir.FullName
+              Write-Host "UPX installed to $($upxDir.FullName)"
+              $installed = $true
+              break
+            } catch {
+              Write-Host "UPX download attempt $i failed: $_"
+              Start-Sleep -Seconds 5
+            }
+          }
+          if (-not $installed) {
+            Write-Host "Could not install UPX after 3 attempts - proceeding without compression."
+          }
 
       - name: Build one-file exe
         run: |
