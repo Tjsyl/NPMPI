@@ -1,3 +1,5 @@
+![NpmPi](.github/social-preview.png)
+
 # npmpi
 
 One CLI for managing Nginx Proxy Manager + Pi-hole hostnames across two
