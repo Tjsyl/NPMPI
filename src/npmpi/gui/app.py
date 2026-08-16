@@ -19,9 +19,21 @@ from npmpi.gui.tabs.list_tab import ListTab
 from npmpi.gui.tabs.migrate_tab import MigrateTab
 from npmpi.gui.tabs.setup_tab import SetupTab
 from npmpi.gui.tabs.sync_tab import SyncTab
-from npmpi.gui.widgets import ButtonBar
+from npmpi.gui.widgets import ButtonBar, HelpButton
 
 TAB_NAMES = ["List / Find", "Add", "Sync", "Gen", "Migrate", "Setup"]
+
+# Which CLI command(s) each tab's Help dropdown should show - keys must
+# match TAB_NAMES exactly. List/Find covers two CLI commands at once since
+# it's one combined tab; every other tab maps to exactly one.
+TAB_TO_COMMANDS: dict[str, list[str]] = {
+    "List / Find": ["list", "find"],
+    "Add": ["add"],
+    "Sync": ["sync"],
+    "Gen": ["gen"],
+    "Migrate": ["migrate"],
+    "Setup": ["setup"],
+}
 
 
 def _asset_path(name: str) -> Path:
@@ -54,8 +66,14 @@ class NpmpiApp(ctk.CTk):
         ctk.CTkLabel(header, text="npmpi", font=ctk.CTkFont(size=18, weight="bold")).pack(side="left")
         theme.make_mode_switcher(header).pack(side="right")
 
-        self.tab_bar = ButtonBar(self, TAB_NAMES, command=self._show_tab, initial=TAB_NAMES[0])
-        self.tab_bar.pack(fill="x", padx=16, pady=(14, 0))
+        tab_row = ctk.CTkFrame(self, fg_color="transparent")
+        tab_row.pack(fill="x", padx=16, pady=(14, 0))
+
+        self.tab_bar = ButtonBar(tab_row, TAB_NAMES, command=self._show_tab, initial=TAB_NAMES[0])
+        self.tab_bar.pack(side="left")
+
+        self.help_button = HelpButton(tab_row, get_commands_and_title=self._current_tab_help)
+        self.help_button.pack(side="right")
 
         self.tab_container = ctk.CTkFrame(self, fg_color="transparent")
         self.tab_container.pack(fill="both", expand=True, padx=16, pady=16)
@@ -97,12 +115,17 @@ class NpmpiApp(ctk.CTk):
             pass
 
     def _show_tab(self, name: str) -> None:
+        self.help_button.close()  # its content is for whichever tab we're leaving, now stale
         for tab_name, frame in self._tab_frames.items():
             if tab_name == name:
                 frame.pack(fill="both", expand=True)
             else:
                 frame.pack_forget()
         self.tab_bar.set(name)
+
+    def _current_tab_help(self) -> tuple[str, list[str]]:
+        name = self.tab_bar.selected
+        return name, TAB_TO_COMMANDS.get(name, [])
 
     def _load_state(self, initial: bool = False) -> None:
         if config_exists():

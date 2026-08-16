@@ -4,18 +4,27 @@
 ; (CLI) and npmpigui.exe (always opens straight to the GUI - two separate
 ; exes because a single one can't reliably tell double-click apart from
 ; terminal launch, see gui_main.py/commands/gui.py for why) into
-; %LOCALAPPDATA%\npmpi, adds that folder to the current user's PATH, adds
-; a Start Menu shortcut (+ optional desktop shortcut) for the GUI exe, and
-; registers a normal Add/Remove Programs uninstaller. No admin rights
-; needed (installs per-user, same footprint as install.ps1) - PrivilegesRequired
-; is set to lowest so it won't trigger a UAC prompt.
+; %LOCALAPPDATA%\npmpi, adds a Start Menu shortcut (+ optional desktop
+; shortcut) for the GUI exe, and registers a normal Add/Remove Programs
+; uninstaller. No admin rights needed (installs per-user, same footprint
+; as install.ps1) - PrivilegesRequired is set to lowest so it won't
+; trigger a UAC prompt.
+;
+; Both exes are --onedir PyInstaller builds (an exe alongside its
+; dependency files, not a single packed file - --onefile made npmpigui.exe
+; take 10+ seconds to open every time since it had to self-extract first).
+; Each one lands in its OWN subfolder under {app} (npmpi\ and npmpigui\)
+; rather than both flattened into {app} directly - they each ship their
+; own "_internal" support-file folder, and merging two different onedir
+; trees into one flat directory would make those collide. {app}\npmpi is
+; what goes on PATH, not {app} itself.
 ;
 ; It does NOT touch ~/.npmpi/config.json or ~/.npmpi/credentials.dat, on
 ; install or uninstall - those live outside {app} and are managed entirely
 ; by `npmpi setup`.
 ;
 ; Requires Inno Setup 6 (https://jrsoftware.org/isinfo.php) to compile.
-; Build dist\npmpi.exe + dist\npmpigui.exe FIRST (via build_exe.ps1), then either:
+; Build dist\npmpi\ + dist\npmpigui\ FIRST (via build_exe.ps1), then either:
 ;
 ;   iscc npmpi_installer.iss
 ;   iscc /DMyAppVersion=0.1.6 npmpi_installer.iss   (bake in a version number)
@@ -25,8 +34,8 @@
 
 #define MyAppName "NPMPI"
 #define MyAppPublisher "Travis Sylvester"
-#define MyAppExeName "npmpi.exe"
-#define MyAppGuiExeName "npmpigui.exe"
+#define MyAppExeName "npmpi\npmpi.exe"
+#define MyAppGuiExeName "npmpigui\npmpigui.exe"
 #define MyAppURL "https://github.com/tjsyl/NPMPI"
 #ifndef MyAppVersion
   #define MyAppVersion "0.0.0-dev"
@@ -61,8 +70,8 @@ WizardStyle=modern
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Files]
-Source: "dist\npmpi.exe"; DestDir: "{app}"; Flags: ignoreversion
-Source: "dist\npmpigui.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "dist\npmpi\*"; DestDir: "{app}\npmpi"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "dist\npmpigui\*"; DestDir: "{app}\npmpigui"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Tasks]
 Name: "desktopicon"; Description: "Create a desktop shortcut for the npmpi GUI"; GroupDescription: "Additional shortcuts:"; Flags: unchecked
@@ -120,14 +129,16 @@ end;
 
 procedure CurStepChanged(CurStep: TSetupStep);
 begin
+  // {app}\npmpi, not {app} itself - that's the subfolder npmpi.exe
+  // actually lives in (see the top-of-file comment on the onedir layout).
   if CurStep = ssPostInstall then
-    EnvAddPath(ExpandConstant('{app}'));
+    EnvAddPath(ExpandConstant('{app}\npmpi'));
 end;
 
 procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
 begin
   if CurUninstallStep = usPostUninstall then
-    EnvRemovePath(ExpandConstant('{app}'));
+    EnvRemovePath(ExpandConstant('{app}\npmpi'));
 end;
 
 procedure InitializeWizard();

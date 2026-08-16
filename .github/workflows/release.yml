@@ -65,21 +65,32 @@ jobs:
         shell: pwsh
         run: python scripts/gen_version_info.py "${{ steps.ver.outputs.version }}" version_info.txt
 
-      - name: Build CLI one-file exe (npmpi.exe)
+      - name: Build CLI exe (npmpi.exe, --onedir)
         run: |
-          pyinstaller --onefile --name npmpi --console --version-file version_info.txt --icon src/npmpi/gui/assets/icon.ico --add-data "src/npmpi/gui/assets;npmpi/gui/assets" --collect-all customtkinter --paths src src/npmpi/__main__.py
+          pyinstaller --onedir --noconfirm --name npmpi --console --version-file version_info.txt --icon src/npmpi/gui/assets/icon.ico --add-data "src/npmpi/gui/assets;npmpi/gui/assets" --collect-all customtkinter --paths src src/npmpi/__main__.py
 
-      - name: Build GUI one-file exe (npmpigui.exe)
+      - name: Build GUI exe (npmpigui.exe, --onedir)
         run: |
-          pyinstaller --onefile --name npmpigui --windowed --version-file version_info.txt --icon src/npmpi/gui/assets/icon.ico --add-data "src/npmpi/gui/assets;npmpi/gui/assets" --collect-all customtkinter --paths src src/npmpi/gui_main.py
+          pyinstaller --onedir --noconfirm --name npmpigui --windowed --version-file version_info.txt --icon src/npmpi/gui/assets/icon.ico --add-data "src/npmpi/gui/assets;npmpi/gui/assets" --collect-all customtkinter --paths src src/npmpi/gui_main.py
+
+      # --onedir builds are folders, not single files - GitHub release assets
+      # must be single files, so zip each folder up for distribution. Each
+      # zip's root contains the exe directly (npmpi.exe, _internal\, etc.)
+      # rather than a wrapping folder, so install.ps1 can just extract it
+      # straight into <InstallDir>\npmpi\ / <InstallDir>\npmpigui\.
+      - name: Package onedir builds as zips
+        shell: pwsh
+        run: |
+          Compress-Archive -Path dist/npmpi/* -DestinationPath dist/npmpi-windows.zip
+          Compress-Archive -Path dist/npmpigui/* -DestinationPath dist/npmpigui-windows.zip
 
       - name: Upload exe artifacts
         uses: actions/upload-artifact@v4
         with:
           name: npmpi-windows-exe
           path: |
-            dist/npmpi.exe
-            dist/npmpigui.exe
+            dist/npmpi-windows.zip
+            dist/npmpigui-windows.zip
 
       - name: Install Inno Setup
         run: choco install innosetup -y --no-progress
@@ -100,6 +111,6 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            dist/npmpi.exe
-            dist/npmpigui.exe
+            dist/npmpi-windows.zip
+            dist/npmpigui-windows.zip
             installer_output/npmpi-setup.exe

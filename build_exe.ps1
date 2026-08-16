@@ -3,19 +3,23 @@
   Build standalone npmpi.exe + npmpigui.exe locally with PyInstaller.
 
 .DESCRIPTION
-  Produces dist\npmpi.exe (CLI, console subsystem - what goes on PATH for
-  terminal use) and dist\npmpigui.exe (always opens straight to the GUI,
-  no console at all - what a desktop/Start Menu shortcut should point to
-  for double-click use). Both are single files with Python + all
-  dependencies bundled in, so they run on a machine with no Python
-  installed at all. Must be run ON Windows (PyInstaller doesn't
-  cross-compile).
+  Produces dist\npmpi\npmpi.exe (CLI, console subsystem - the folder it
+  sits in goes on PATH for terminal use) and dist\npmpigui\npmpigui.exe
+  (always opens straight to the GUI, no console at all - what a desktop/
+  Start Menu shortcut should point to for double-click use). Both are
+  --onedir builds (an exe alongside its dependency files in a folder, not
+  a single packed file) so they start almost instantly - PyInstaller's
+  --onefile mode has to self-extract Python + all dependencies into a
+  fresh temp folder on every single launch, which made npmpigui.exe take
+  10+ seconds to open. --onedir runs directly from files already on disk.
+  Either way, no Python installation is required on the target machine.
+  Must be run ON Windows (PyInstaller doesn't cross-compile).
 
   Two separate executables rather than one that tries to guess how it was
-  launched: PyInstaller's onefile bootloader makes double-click-vs-
-  terminal detection from inside a single exe unreliable (tried it, see
-  git history / commands/gui.py's docstring for why) - one exe per
-  subsystem sidesteps that entirely instead of guessing.
+  launched: PyInstaller's bootloader makes double-click-vs-terminal
+  detection from inside a single exe unreliable (tried it, see git
+  history / commands/gui.py's docstring for why) - one exe per subsystem
+  sidesteps that entirely instead of guessing.
 
   This is what the GitHub Actions release workflow (.github/workflows/
   release.yml) runs automatically on every version tag - use this script
@@ -131,6 +135,31 @@ if ($NoUpx) {
     }
 }
 
+function Remove-DistFolderWithRetry {
+    # PyInstaller only tries once to clear out an old dist\<name> folder
+    # before rebuilding it, and gives up hard on a PermissionError. On this
+    # machine that folder is under active AV/backup scanning, which
+    # sporadically holds a file locked for a second or two right after
+    # PyInstaller (or Windows Explorer, if it's open there) touches it -
+    # so we clear it out ourselves first, with retries, rather than let
+    # PyInstaller's single attempt fail the whole build over a transient lock.
+    param([string]$Path)
+    if (-not (Test-Path $Path)) { return }
+    for ($i = 1; $i -le 6; $i++) {
+        try {
+            Remove-Item -Recurse -Force $Path -ErrorAction Stop
+            return
+        } catch {
+            if ($i -eq 6) {
+                Write-Error "Could not remove $Path after 6 attempts ($_). Close any running npmpi.exe/npmpigui.exe and any Explorer/terminal window sitting inside that folder, then try again."
+                exit 1
+            }
+            Write-Host "  $Path is locked (attempt $i/6, probably antivirus scanning it) - waiting and retrying..." -ForegroundColor DarkGray
+            Start-Sleep -Seconds 2
+        }
+    }
+}
+
 function Invoke-PyInstallerBuild {
     param(
         [string]$Name,
@@ -138,7 +167,9 @@ function Invoke-PyInstallerBuild {
         [switch]$Windowed
     )
 
-    $piArgs = @("--onefile", "--name", $Name, "--version-file", "version_info.txt",
+    Remove-DistFolderWithRetry -Path "dist/$Name"
+
+    $piArgs = @("--onedir", "--noconfirm", "--name", $Name, "--version-file", "version_info.txt",
         "--icon", "src/npmpi/gui/assets/icon.ico",
         "--add-data", "src/npmpi/gui/assets;npmpi/gui/assets",
         "--collect-all", "customtkinter", "--paths", "src", $EntryScript)
@@ -149,11 +180,22 @@ function Invoke-PyInstallerBuild {
 
     Write-Host "`n--- building $Name.exe ---" -ForegroundColor DarkCyan
     & $py -m PyInstaller @piArgs
+    if ($LASTEXITCODE -ne 0) {
+        # $ErrorActionPreference = "Stop" only catches terminating PowerShell
+        # errors, not a nonzero exit code from an external process like this
+        # - without this check the script happily carries on to the next
+        # build and prints "Built:" at the end even after a real failure
+        # (e.g. PyInstaller couldn't replace dist\$Name because the exe from
+        # a previous build was still running and had its files locked).
+        Write-Error "PyInstaller failed building $Name.exe (exit code $LASTEXITCODE) - see the traceback above. A common cause: $Name.exe from a previous build is still running - close it and try again."
+        exit 1
+    }
 }
 
 Invoke-PyInstallerBuild -Name "npmpi" -EntryScript "src/npmpi/__main__.py"
 Invoke-PyInstallerBuild -Name "npmpigui" -EntryScript "src/npmpi/gui_main.py" -Windowed
 
-Write-Host "`nBuilt: dist\npmpi.exe (CLI - put this on PATH) and dist\npmpigui.exe (always opens the GUI - shortcut this for double-click use)" -ForegroundColor Green
+Write-Host "`nBuilt: dist\npmpi\npmpi.exe (CLI - put dist\npmpi\ on PATH) and dist\npmpigui\npmpigui.exe (always opens the GUI - shortcut this for double-click use)" -ForegroundColor Green
+Write-Host "Each is a folder (exe + its dependency files), not a single file - copy the whole folder, not just the exe."
 Write-Host "Or run install.ps1 to fetch the CI-built release exes from GitHub instead."
 Write-Host "If antivirus flags either build, re-run with .\build_exe.ps1 -NoUpx to rule out UPX compression."
