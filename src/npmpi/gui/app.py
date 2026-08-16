@@ -1,5 +1,5 @@
 """Main npmpi GUI window - a tabbed shell wiring together List/Find, Add,
-Sync, Gen, Migrate, and Setup, all sharing one loaded config/credentials
+Sync, Generate, Migrate, and Setup, all sharing one loaded config/credentials
 state that any tab can trigger a reload of after it changes something."""
 
 from __future__ import annotations
@@ -21,16 +21,17 @@ from npmpi.gui.tabs.setup_tab import SetupTab
 from npmpi.gui.tabs.sync_tab import SyncTab
 from npmpi.gui.widgets import ButtonBar, HelpButton
 
-TAB_NAMES = ["List / Find", "Add", "Sync", "Gen", "Migrate", "Setup"]
+TAB_NAMES = ["List / Find", "Add", "Sync", "Generate", "Migrate", "Setup"]
 
 # Which CLI command(s) each tab's Help dropdown should show - keys must
 # match TAB_NAMES exactly. List/Find covers two CLI commands at once since
-# it's one combined tab; every other tab maps to exactly one.
+# it's one combined tab; every other tab maps to exactly one. The "Generate"
+# tab still maps to the "gen" CLI command name - only the tab label changed.
 TAB_TO_COMMANDS: dict[str, list[str]] = {
     "List / Find": ["list", "find"],
     "Add": ["add"],
     "Sync": ["sync"],
-    "Gen": ["gen"],
+    "Generate": ["gen"],
     "Migrate": ["migrate"],
     "Setup": ["setup"],
 }
@@ -85,7 +86,7 @@ class NpmpiApp(ctk.CTk):
         self.list_tab = ListTab(self._tab_frames["List / Find"], self)
         self.add_tab = AddTab(self._tab_frames["Add"], self)
         self.sync_tab = SyncTab(self._tab_frames["Sync"], self)
-        self.gen_tab = GenTab(self._tab_frames["Gen"], self)
+        self.gen_tab = GenTab(self._tab_frames["Generate"], self)
         self.migrate_tab = MigrateTab(self._tab_frames["Migrate"], self)
         self.setup_tab = SetupTab(self._tab_frames["Setup"], self)
         self._tabs = [self.list_tab, self.add_tab, self.sync_tab, self.gen_tab, self.migrate_tab, self.setup_tab]

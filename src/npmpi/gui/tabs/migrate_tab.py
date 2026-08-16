@@ -25,6 +25,7 @@ from npmpi import pihole as pihole_api
 from npmpi.commands.migrate import FIELDS_TO_STRIP, _resolve_backup_path
 from npmpi.creds import get_npm_password, get_pihole_password
 from npmpi.gui.runner import run_captured
+from npmpi.gui.widgets import DynamicWrapLabel
 
 
 class MigrateTab:
@@ -77,8 +78,11 @@ class MigrateTab:
     # -- Step 0: pick site -------------------------------------------------
     def _step0(self, site_keys: list[str]) -> None:
         ctk.CTkLabel(self.content, text="Step 1 of 5 - choose the site to migrate", font=ctk.CTkFont(weight="bold")).pack(anchor="w")
-        ctk.CTkLabel(
-            self.content, wraplength=800, justify="left", text_color=("gray30", "gray70"),
+        # DynamicWrapLabel instead of a fixed wraplength=N - a hardcoded wrap width
+        # overflows past the window edge and gets clipped once the window is
+        # narrower than that, instead of actually wrapping to fit.
+        DynamicWrapLabel(
+            self.content, self.content, text_color=("gray30", "gray70"),
             text="Backs up the source NPM's proxy hosts, optionally backs up that site's Pi-hole(s) "
                  "too, previews what would be recreated on a new NPM, and only creates anything there "
                  "once you confirm the preview.",
@@ -238,14 +242,25 @@ class MigrateTab:
 
         grid = ctk.CTkFrame(self.content, fg_color="transparent")
         grid.pack(fill="x", pady=(6, 0))
-        self.dest_url_var = tk.StringVar(value=self.state.get("dest_url", ""))
-        ctk.CTkEntry(grid, textvariable=self.dest_url_var, width=260, placeholder_text="New NPM URL").grid(row=0, column=0, padx=(0, 8), pady=4)
-        self.dest_email_var = tk.StringVar(value=self.state.get("dest_email", site["npm"]["email"]))
-        ctk.CTkEntry(grid, textvariable=self.dest_email_var, width=200, placeholder_text="Email").grid(row=0, column=1, padx=8, pady=4)
-        self.dest_pw_var = tk.StringVar()
-        ctk.CTkEntry(grid, textvariable=self.dest_pw_var, width=180, placeholder_text="Password", show="*").grid(row=0, column=2, padx=8, pady=4)
-        self.exclude_var = tk.StringVar(value=self.state.get("exclude_raw", ""))
-        ctk.CTkEntry(grid, textvariable=self.exclude_var, width=260, placeholder_text="Exclude domains (space-separated)").grid(row=1, column=0, columnspan=2, padx=(0, 8), pady=4, sticky="w")
+        # No textvariable on any of these four - see add_tab.py's note on why a
+        # bound StringVar silently disables CustomTkinter's placeholder_text.
+        # Pre-filled values go in via .insert() instead of textvariable(value=...).
+        self.dest_url_var = ctk.CTkEntry(grid, width=260, placeholder_text="New NPM URL")
+        self.dest_url_var.grid(row=0, column=0, padx=(0, 8), pady=4)
+        if self.state.get("dest_url"):
+            self.dest_url_var.insert(0, self.state["dest_url"])
+
+        self.dest_email_var = ctk.CTkEntry(grid, width=200, placeholder_text="Email")
+        self.dest_email_var.grid(row=0, column=1, padx=8, pady=4)
+        self.dest_email_var.insert(0, self.state.get("dest_email", site["npm"]["email"]))
+
+        self.dest_pw_var = ctk.CTkEntry(grid, width=180, placeholder_text="Password", show="*")
+        self.dest_pw_var.grid(row=0, column=2, padx=8, pady=4)
+
+        self.exclude_var = ctk.CTkEntry(grid, width=260, placeholder_text="Exclude domains (space-separated)")
+        self.exclude_var.grid(row=1, column=0, columnspan=2, padx=(0, 8), pady=4, sticky="w")
+        if self.state.get("exclude_raw"):
+            self.exclude_var.insert(0, self.state["exclude_raw"])
 
         self.preview_btn = ctk.CTkButton(self.content, text="Preview", width=100, command=self._run_preview)
         self.preview_btn.pack(anchor="w", pady=(10, 0))
@@ -308,8 +323,10 @@ class MigrateTab:
         to_import = self.state.get("to_import", [])
         dest_url = self.state["dest_url"]
         ctk.CTkLabel(self.content, text="Step 5 of 5 - confirm and create", font=ctk.CTkFont(weight="bold")).pack(anchor="w")
-        ctk.CTkLabel(self.content, text=f"Create {len(to_import)} proxy host(s) on {dest_url}? Nothing has been written yet.",
-                     wraplength=800, justify="left").pack(anchor="w", pady=(4, 10))
+        DynamicWrapLabel(
+            self.content, self.content,
+            text=f"Create {len(to_import)} proxy host(s) on {dest_url}? Nothing has been written yet.",
+        ).pack(anchor="w", pady=(4, 10))
 
         self.create_btn = ctk.CTkButton(self.content, text=f"Create {len(to_import)} host(s)", width=180, command=self._run_create)
         self.create_btn.pack(anchor="w")

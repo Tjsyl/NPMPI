@@ -128,18 +128,27 @@ full syntax + examples for every command.
 ### `npmpi add`
 
 ```
-npmpi add [SITE] NODE-NAME [-s|--https] OCTET PORT
+npmpi add [multi] SITE NODE-NAME [-s|--https] OCTET PORT
 ```
 
 - `npmpi add m test 99 8888` - creates `test.m.example.com`, http, backend
   `10.0.2.99:8888`. Site `m` only - no cross-site mirroring.
 - `npmpi add h test -s 99 8888` - creates `test.home.example.com`, https,
   backend `10.0.1.99:8888`. Site `h` only.
-- `npmpi add test -s 99 8888` (no site letter) - creates **both**
-  `test.m.example.com` and `test.home.example.com` as real backends on
-  their own networks, **and** cross-mirrors each onto the other site's
-  Pi-hole(s)/NPM, so either name resolves and works no matter which
-  network you're on.
+- `npmpi add multi h test -s 99 8888` - `h` is the **one** site this
+  backend actually lives on: creates `test.home.example.com` as a real
+  backend there (`10.0.1.99:8888`), then mirrors that same hostname onto
+  every other configured site (DNS + proxy forwarding back across the
+  SD-WAN mesh), so it resolves and works no matter which network you're
+  on. Don't just run the site-only form twice for a "reachable everywhere"
+  hostname - that creates a **second, independent** real backend on the
+  other site's own network at the same octet, which is wrong unless that
+  site genuinely runs an identical backend of its own at that address.
+
+`SITE` is always required now - a bare `npmpi add NODE-NAME OCTET PORT`
+with no site used to mean "both sites" this way (two independent real
+backends, same octet, on each network) and has been removed since that
+was the source of the bug above; say `multi SITE` explicitly instead.
 
 Safe to re-run: if a hostname already exists on the target NPM, that step
 is reported and skipped rather than erroring - no separate "append"
@@ -159,8 +168,8 @@ run once the other site comes back online, to catch it up.
 > **Why isn't full mirroring the default for every `add`?** The `m`
 > network sits in a small travel hardcase and is only reachable when it's
 > plugged in. `npmpi add m`/`npmpi add h` always work regardless of the
-> other site's status; the mirroring step in a domain-less `npmpi add`
-> can partially fail if the other site is offline at that moment - `sync`
+> other site's status; the mirroring step in `npmpi add multi` can
+> partially fail if another site is offline at that moment - `sync`
 > is the reliable catch-up path for exactly that case.
 
 ### `npmpi gen`

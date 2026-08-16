@@ -32,11 +32,13 @@ class SyncTab:
             row=0, column=1, padx=12, pady=4, sticky="w",
         )
 
-        self.only_var = tk.StringVar()
-        ctk.CTkEntry(
-            form, textvariable=self.only_var, width=260,
+        # No textvariable here on purpose - see add_tab.py's note on why that
+        # breaks CustomTkinter's placeholder_text. Read via .get() instead.
+        self.only_var = ctk.CTkEntry(
+            form, width=260,
             placeholder_text="Only these prefixes (space-separated, blank = all)",
-        ).grid(row=0, column=2, padx=12, pady=4)
+        )
+        self.only_var.grid(row=0, column=2, padx=12, pady=4)
 
         self.run_btn = ctk.CTkButton(form, text="Run", width=90, command=self._run)
         self.run_btn.grid(row=0, column=3, padx=(8, 0), pady=4)

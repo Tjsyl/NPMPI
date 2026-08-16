@@ -55,10 +55,11 @@ class ListTab:
         self.site_menu = ctk.CTkOptionMenu(controls, variable=self.site_var, values=[ALL_SITES])
         self.site_menu.pack(side="left")
 
-        self.search_var = tk.StringVar()
-        search = ctk.CTkEntry(controls, textvariable=self.search_var, placeholder_text="Search hostname or IP...", width=280)
-        search.pack(side="left", padx=10)
-        search.bind("<Return>", lambda _e: self.refresh())
+        # No textvariable - always starts empty, needs the placeholder to work
+        # (see add_tab.py's note on why textvariable + placeholder_text conflict).
+        self.search_var = ctk.CTkEntry(controls, placeholder_text="Search hostname or IP...", width=280)
+        self.search_var.pack(side="left", padx=10)
+        self.search_var.bind("<Return>", lambda _e: self.refresh())
 
         ctk.CTkButton(controls, text="Refresh", width=90, command=self.refresh).pack(side="left")
 

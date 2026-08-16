@@ -4,7 +4,7 @@ forms. Built directly against config.write_config/creds.save_creds rather
 than reusing setup.py's cmd_setup (which is a long blocking input()/
 getpass() wizard) - same data model (see commands/setup.py's _setup_site),
 just collected through fields instead of sequential prompts. Gen's own
-config is edited from the Gen tab, not duplicated here.
+config is edited from the Generate tab, not duplicated here.
 """
 
 from __future__ import annotations
@@ -33,12 +33,16 @@ class _PiholeRows:
         row_frame = ctk.CTkFrame(self.container, fg_color="transparent")
         row_frame.pack(fill="x", pady=2)
         n = len(self.rows) + 1
-        name_var = tk.StringVar(value=f"pihole{n}")
-        url_var = tk.StringVar()
-        pw_var = tk.StringVar()
-        ctk.CTkEntry(row_frame, textvariable=name_var, width=100, placeholder_text="name").pack(side="left", padx=(0, 6))
-        ctk.CTkEntry(row_frame, textvariable=url_var, width=220, placeholder_text="URL, e.g. https://10.0.1.2:8489").pack(side="left", padx=6)
-        ctk.CTkEntry(row_frame, textvariable=pw_var, width=160, placeholder_text="password", show="*").pack(side="left", padx=6)
+        # No textvariable on any of these - a bound StringVar silently disables
+        # CustomTkinter's placeholder_text (see add_tab.py's note). name_var keeps
+        # a real starting value so it's inserted directly instead.
+        name_var = ctk.CTkEntry(row_frame, width=100, placeholder_text="name")
+        name_var.insert(0, f"pihole{n}")
+        url_var = ctk.CTkEntry(row_frame, width=220, placeholder_text="URL, e.g. https://10.0.1.2:8489")
+        pw_var = ctk.CTkEntry(row_frame, width=160, placeholder_text="password", show="*")
+        name_var.pack(side="left", padx=(0, 6))
+        url_var.pack(side="left", padx=6)
+        pw_var.pack(side="left", padx=6)
         self.rows.append({"frame": row_frame, "name": name_var, "url": url_var, "pw": pw_var})
 
     def remove_last(self) -> None:
@@ -92,10 +96,12 @@ class SetupTab:
         row.pack(fill="x", padx=12, pady=4)
         url_var = tk.StringVar(value=site["npm"]["url"])
         email_var = tk.StringVar(value=site["npm"]["email"])
-        pw_var = tk.StringVar()
         ctk.CTkEntry(row, textvariable=url_var, width=220, placeholder_text="NPM URL").pack(side="left", padx=(0, 6))
         ctk.CTkEntry(row, textvariable=email_var, width=180, placeholder_text="NPM email").pack(side="left", padx=6)
-        ctk.CTkEntry(row, textvariable=pw_var, width=160, placeholder_text="New password (blank = keep)", show="*").pack(side="left", padx=6)
+        # No textvariable here - always starts empty, and a bound StringVar would
+        # silently disable the placeholder (see add_tab.py's note).
+        pw_var = ctk.CTkEntry(row, width=160, placeholder_text="New password (blank = keep)", show="*")
+        pw_var.pack(side="left", padx=6)
         ctk.CTkButton(row, text="Save NPM", width=100,
                       command=lambda: self._save_npm(site_key, url_var.get(), email_var.get(), pw_var.get())).pack(side="left", padx=6)
 
@@ -105,21 +111,25 @@ class SetupTab:
             prow.pack(fill="x", padx=12, pady=2)
             name_var = tk.StringVar(value=ph["name"])
             phurl_var = tk.StringVar(value=ph["url"])
-            phpw_var = tk.StringVar()
+            # No textvariable - always starts empty, needs the placeholder to work.
+            phpw_var = ctk.CTkEntry(prow, width=160, placeholder_text="New password (blank = keep)", show="*")
             ctk.CTkEntry(prow, textvariable=name_var, width=100).pack(side="left", padx=(0, 6))
             ctk.CTkEntry(prow, textvariable=phurl_var, width=220).pack(side="left", padx=6)
-            ctk.CTkEntry(prow, textvariable=phpw_var, width=160, placeholder_text="New password (blank = keep)", show="*").pack(side="left", padx=6)
+            phpw_var.pack(side="left", padx=6)
             ctk.CTkButton(prow, text="Save", width=70,
                           command=lambda i=idx, n=name_var, u=phurl_var, p=phpw_var: self._save_pihole(site_key, i, n.get(), u.get(), p.get())).pack(side="left", padx=6)
 
         add_row = ctk.CTkFrame(card, fg_color="transparent")
         add_row.pack(fill="x", padx=12, pady=(6, 10))
-        new_name_var = tk.StringVar(value=f"pihole{len(site['piholes']) + 1}")
-        new_url_var = tk.StringVar()
-        new_pw_var = tk.StringVar()
-        ctk.CTkEntry(add_row, textvariable=new_name_var, width=100, placeholder_text="name").pack(side="left", padx=(0, 6))
-        ctk.CTkEntry(add_row, textvariable=new_url_var, width=220, placeholder_text="URL, e.g. https://10.0.1.2:8489").pack(side="left", padx=6)
-        ctk.CTkEntry(add_row, textvariable=new_pw_var, width=160, placeholder_text="password", show="*").pack(side="left", padx=6)
+        # No textvariable on any of these - see add_tab.py's note. new_name_var
+        # keeps a real starting value, inserted directly instead.
+        new_name_var = ctk.CTkEntry(add_row, width=100, placeholder_text="name")
+        new_name_var.insert(0, f"pihole{len(site['piholes']) + 1}")
+        new_url_var = ctk.CTkEntry(add_row, width=220, placeholder_text="URL, e.g. https://10.0.1.2:8489")
+        new_pw_var = ctk.CTkEntry(add_row, width=160, placeholder_text="password", show="*")
+        new_name_var.pack(side="left", padx=(0, 6))
+        new_url_var.pack(side="left", padx=6)
+        new_pw_var.pack(side="left", padx=6)
         ctk.CTkButton(add_row, text="+ Pi-hole", width=90,
                       command=lambda: self._add_pihole(site_key, new_name_var.get(), new_url_var.get(), new_pw_var.get())).pack(side="left", padx=6)
         if site["piholes"]:
@@ -198,21 +208,23 @@ class SetupTab:
 
         grid = ctk.CTkFrame(card, fg_color="transparent")
         grid.pack(fill="x", padx=12, pady=4)
-        key_var = tk.StringVar()
-        domain_var = tk.StringVar()
-        prefix_var = tk.StringVar()
-        ctk.CTkEntry(grid, textvariable=key_var, width=100, placeholder_text="site key, e.g. h").grid(row=0, column=0, padx=(0, 6), pady=3)
-        ctk.CTkEntry(grid, textvariable=domain_var, width=220, placeholder_text="domain, e.g. home.example.com").grid(row=0, column=1, padx=6, pady=3)
-        ctk.CTkEntry(grid, textvariable=prefix_var, width=160, placeholder_text="IP prefix, e.g. 10.0.1.").grid(row=0, column=2, padx=6, pady=3)
+        # No textvariable on any of these seven - all start empty and need the
+        # placeholder to actually show (see add_tab.py's note).
+        key_var = ctk.CTkEntry(grid, width=100, placeholder_text="site key, e.g. home")
+        domain_var = ctk.CTkEntry(grid, width=220, placeholder_text="domain, e.g. home.example.com")
+        prefix_var = ctk.CTkEntry(grid, width=160, placeholder_text="IP prefix, e.g. 10.0.1.")
+        key_var.grid(row=0, column=0, padx=(0, 6), pady=3)
+        domain_var.grid(row=0, column=1, padx=6, pady=3)
+        prefix_var.grid(row=0, column=2, padx=6, pady=3)
 
-        npm_url_var = tk.StringVar()
-        npm_email_var = tk.StringVar()
-        npm_pw_var = tk.StringVar()
-        target_ip_var = tk.StringVar()
-        ctk.CTkEntry(grid, textvariable=npm_url_var, width=220, placeholder_text="NPM URL").grid(row=1, column=0, padx=(0, 6), pady=3)
-        ctk.CTkEntry(grid, textvariable=npm_email_var, width=160, placeholder_text="NPM email").grid(row=1, column=1, padx=6, pady=3)
-        ctk.CTkEntry(grid, textvariable=npm_pw_var, width=160, placeholder_text="NPM password", show="*").grid(row=1, column=2, padx=6, pady=3)
-        ctk.CTkEntry(grid, textvariable=target_ip_var, width=220, placeholder_text="Pi-hole target IP (usually the NPM IP)").grid(row=2, column=0, padx=(0, 6), pady=3, sticky="w")
+        npm_url_var = ctk.CTkEntry(grid, width=220, placeholder_text="NPM URL")
+        npm_email_var = ctk.CTkEntry(grid, width=160, placeholder_text="NPM email")
+        npm_pw_var = ctk.CTkEntry(grid, width=160, placeholder_text="NPM password", show="*")
+        target_ip_var = ctk.CTkEntry(grid, width=220, placeholder_text="Pi-hole target IP (usually the NPM IP)")
+        npm_url_var.grid(row=1, column=0, padx=(0, 6), pady=3)
+        npm_email_var.grid(row=1, column=1, padx=6, pady=3)
+        npm_pw_var.grid(row=1, column=2, padx=6, pady=3)
+        target_ip_var.grid(row=2, column=0, padx=(0, 6), pady=3, sticky="w")
 
         ctk.CTkLabel(card, text="Pi-hole(s):", text_color=("gray30", "gray70")).pack(anchor="w", padx=12, pady=(8, 0))
         pihole_rows = _PiholeRows(card)
@@ -233,6 +245,9 @@ class SetupTab:
 
         if not all([key, domain, ip_prefix, npm_url, npm_email, npm_pw, target_ip]):
             self._status("All site/NPM fields are required to add a new site.", ok=False)
+            return
+        if key == "multi":
+            self._status("'multi' is reserved (it's the `npmpi add multi <SITE> ...` keyword) - pick a different site key.", ok=False)
             return
         if key in self.app.cfg.get("sites", {}):
             self._status(f"Site '{key}' already exists.", ok=False)

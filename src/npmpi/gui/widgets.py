@@ -64,6 +64,95 @@ class ButtonBar:
         self.frame.pack(**kwargs)
 
 
+class FlowRow:
+    """Packs a fixed list of widgets left-to-right into `row1`, wrapping the
+    tail (from `wrap_index` onward) onto `row2` only when everything won't
+    fit on one line at the container's current width - so a form widens
+    back onto one row as the window grows, instead of staying stuck on
+    whatever row split it started with. `container` should be an ancestor
+    frame whose width tracks the window (e.g. packed with fill="x") -
+    that's what's watched for resize via <Configure>.
+
+    items: list of (widget, left_pad_px) - left_pad_px is the gap before
+    that widget when it's not the first control on its row. All widgets
+    must already have `container` (or a descendant of it) as their master,
+    since pack(in_=...) only works within the same toplevel."""
+
+    def __init__(self, container, row1, row2, items: list[tuple], wrap_index: int) -> None:
+        self.container = container
+        self.row1 = row1
+        self.row2 = row2
+        self.items = items
+        self.wrap_index = wrap_index
+        self._job: str | None = None
+        container.bind("<Configure>", self._on_configure)
+
+    def _on_configure(self, _event=None) -> None:
+        # <Configure> fires a lot mid-drag (and once more from our own
+        # repacking toggling row2's height) - coalesce into one relayout per
+        # burst instead of recomputing on every pixel.
+        if self._job is not None:
+            self.container.after_cancel(self._job)
+        self._job = self.container.after(50, self.relayout)
+
+    def relayout(self) -> None:
+        self._job = None
+        self.container.update_idletasks()
+        available = self.container.winfo_width()
+        if available <= 1:
+            return  # not realized yet
+
+        for w, _pad in self.items:
+            w.pack_forget()
+
+        one_row_width = sum(w.winfo_reqwidth() for w, _ in self.items) \
+            + sum(pad for _, pad in self.items[1:])
+
+        if one_row_width <= available:
+            self.row2.pack_forget()
+            for i, (w, pad) in enumerate(self.items):
+                w.pack(in_=self.row1, side="left", padx=(pad if i else 0, 0))
+        else:
+            for i, (w, pad) in enumerate(self.items[:self.wrap_index]):
+                w.pack(in_=self.row1, side="left", padx=(pad if i else 0, 0))
+            for i, (w, pad) in enumerate(self.items[self.wrap_index:]):
+                w.pack(in_=self.row2, side="left", padx=(pad if i else 0, 0))
+            self.row2.pack(fill="x", pady=(8, 0))
+
+
+class DynamicWrapLabel:
+    """A CTkLabel whose wraplength tracks its parent's actual width instead
+    of a fixed pixel guess - a hardcoded wraplength (e.g. 800) overflows
+    past the window's edge and gets clipped whenever the window is
+    narrower than that, instead of wrapping to fit. Bind `container` to
+    whatever ancestor's width should drive the wrap point (usually the
+    label's own parent, packed with fill="x")."""
+
+    def __init__(self, parent, container, text: str = "", **kwargs) -> None:
+        self.label = ctk.CTkLabel(parent, text=text, justify="left", wraplength=600, **kwargs)
+        self._job: str | None = None
+        container.bind("<Configure>", self._on_configure)
+        container.after(100, self._resize)
+
+    def pack(self, **kwargs) -> None:
+        self.label.pack(**kwargs)
+
+    def configure(self, **kwargs) -> None:
+        self.label.configure(**kwargs)
+
+    def _on_configure(self, _event=None) -> None:
+        if self._job is not None:
+            self.label.after_cancel(self._job)
+        self._job = self.label.after(50, self._resize)
+
+    def _resize(self) -> None:
+        self._job = None
+        self.label.update_idletasks()
+        width = self.label.master.winfo_width()
+        if width > 20:
+            self.label.configure(wraplength=max(200, width - 20))
+
+
 class HelpButton:
     """A 'Help v' chip, styled to match ButtonBar's idle/selected look,
     that drops open a small borderless overlay window with CLI help text

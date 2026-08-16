@@ -102,7 +102,13 @@ def _ask_password_keep(label: str) -> str | None:
 
 def _setup_site(existing: dict | None = None, pihole_start: int = 1) -> tuple[str, dict, dict, int]:
     print()
-    key = _ask("Site letter/key (used in `npmpi add <key> ...`)", (existing or {}).get("_key", ""))
+    while True:
+        key = _ask("Site key (used in `npmpi add <key> ...` - any name works, e.g. 'home', "
+                    "'mobile', 'denver', not just a single letter)", (existing or {}).get("_key", ""))
+        if key == "multi":
+            print("  'multi' is reserved (it's the `npmpi add multi <SITE> ...` keyword) - pick a different site key.")
+            continue
+        break
     domain = _ask("Domain suffix for this site (e.g. home.example.com)", (existing or {}).get("domain"))
     ip_prefix = _ask("Backend IP prefix, including trailing dot (e.g. 10.0.1.)", (existing or {}).get("ip_prefix"))
 

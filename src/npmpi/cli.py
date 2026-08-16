@@ -20,16 +20,23 @@ def _help_sections() -> list[tuple]:
     return [
         (
             "add",
-            "npmpi add [SITE] NODE-NAME [-s|--https] OCTET PORT",
-            "Create a new hostname (+ backend). Safe to re-run - an already-existing "
-            "hostname is reported and skipped, not an error. If OCTET/PORT already "
-            "belongs to a different existing hostname, the new name is appended onto "
-            "that existing proxy host instead of creating a duplicate.",
+            "npmpi add [multi] SITE NODE-NAME [-s|--https] OCTET PORT",
+            "Create a new hostname (+ backend) on one site, optionally mirroring it onto "
+            "every other configured site too. Safe to re-run - an already-existing hostname "
+            "is reported and skipped, not an error. If OCTET/PORT already belongs to a "
+            "different existing hostname, the new name is appended onto that existing proxy "
+            "host instead of creating a duplicate.",
             [
-                ("SITE", "Optional. One of your configured site letters (e.g. h/m) - creates "
-                          "the hostname on that site only, no cross-site mirroring. Omit it "
-                          "entirely to create a real backend on BOTH sites at once, PLUS "
-                          "cross-mirror each onto the other site's Pi-hole(s)/NPM."),
+                ("multi", "Optional, goes right before SITE. Without it, the hostname is "
+                           "created on SITE only - nothing touches any other site. With it, "
+                           "SITE is the ONE site this backend actually lives on (real NPM + "
+                           "Pi-hole entry there), and the hostname is ALSO mirrored - DNS + "
+                           "proxy forwarding across the SD-WAN mesh - onto every OTHER "
+                           "configured site. Don't just run the site-only form twice for a "
+                           "'both sites' hostname - that creates a SECOND, independent real "
+                           "backend on the other site's own network at the same octet, which "
+                           "is wrong unless that site truly runs an identical backend there."),
+                ("SITE", "Required. One of your configured site keys (e.g. h/m)."),
                 ("NODE-NAME", "The hostname prefix, e.g. 'test' -> test.example.com."),
                 ("-s / --https", "Use https to the backend. Omit this flag for http (the default)."),
                 ("OCTET", "Last octet of the backend IP - combined with the site's configured "
@@ -41,9 +48,9 @@ def _help_sections() -> list[tuple]:
                 "  -> test.m.example.com, http, backend 10.0.2.99:8888, site 'm' only.",
                 "npmpi add h test -s 99 8888",
                 "  -> test.home.example.com, https, backend 10.0.1.99:8888, site 'h' only.",
-                "npmpi add test -s 99 8888",
-                "  -> test.home.example.com AND test.m.example.com, https, backend ...99:8888",
-                "     on EACH site's own network, plus each cross-mirrored onto the other site.",
+                "npmpi add multi h test -s 99 8888",
+                "  -> test.home.example.com, https, backend 10.0.1.99:8888 - real on site 'h',",
+                "     mirrored (DNS + proxy forward) onto every other configured site.",
             ],
         ),
         (

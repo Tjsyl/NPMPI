@@ -1,10 +1,22 @@
 """
-npmpi add - create a new hostname (+ backend) on one or both sites.
+npmpi add - create a new hostname (+ backend) on one site, optionally
+mirroring it onto every other configured site too.
 
-    npmpi add h <node-name> [-s] <octet> <port>   site "h" only, local, no mirror
-    npmpi add m <node-name> [-s] <octet> <port>   site "m" only, local, no mirror
-    npmpi add <node-name> [-s] <octet> <port>     BOTH sites, real backend on each,
-                                                   PLUS cross-site mirror of each
+    npmpi add <SITE> <NODE-NAME> [-s] <OCTET> <PORT>
+        Site-only: creates the hostname on <SITE>'s own NPM/Pi-hole(s).
+        Nothing is touched on any other site.
+
+    npmpi add multi <SITE> <NODE-NAME> [-s] <OCTET> <PORT>
+        <SITE> is the ONE site this backend actually lives on (real NPM
+        proxy host + Pi-hole DNS, created there exactly like the site-only
+        form above). The hostname is then ALSO mirrored - DNS + proxy
+        forwarding back across the SD-WAN mesh - onto every OTHER
+        configured site, so it's reachable from all of them too. Use this
+        instead of running the site-only form twice: doing that instead
+        would create a SECOND, independent real backend on the other
+        site's own network at the same OCTET, which is almost never what
+        you want unless that site truly runs an identical backend of its
+        own at that address.
 
 -s / --https selects https as the backend scheme; omitted = http.
 
@@ -20,34 +32,56 @@ changing it in one place.
 from __future__ import annotations
 
 import argparse
-import sys
 
 from npmpi.netops import create_or_skip_proxy_host, push_dns_to_site
+
+MULTI_KEYWORD = "multi"
 
 
 def register(subparsers) -> None:
     p = subparsers.add_parser(
         "add",
-        help="Create a new hostname on one or both sites",
+        help="Create a new hostname on one site, optionally mirrored onto every other site",
         description=__doc__,
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    p.add_argument("args", nargs="+", metavar="[SITE] NODE-NAME OCTET PORT",
-                    help="e.g. 'h test 99 8888' or 'test 99 8888' (both sites)")
+    p.add_argument(
+        "args", nargs="+", metavar="[multi] SITE NODE-NAME OCTET PORT",
+        help="e.g. 'h test 99 8888' (site 'h' only) or "
+             "'multi h test 99 8888' (real on site 'h', mirrored onto every other site)",
+    )
     p.add_argument("-s", "--https", action="store_true", help="Use https to the backend (default: http)")
     p.set_defaults(func=cmd_add)
 
 
-def _split_args(raw_args: list[str], site_keys: list[str]) -> tuple[str | None, str, str, str]:
+def _split_args(raw_args: list[str], site_keys: list[str]) -> tuple[bool, str, str, str, str]:
+    if len(raw_args) == 5 and raw_args[0] == MULTI_KEYWORD:
+        _, site, name, octet, port = raw_args
+        if site not in site_keys:
+            raise SystemExit(
+                f"npmpi add multi: unknown site '{site}'. Configured sites: {site_keys}\n"
+                f"Run `npmpi -e` for full syntax and examples."
+            )
+        return True, site, name, octet, port
+
     if len(raw_args) == 4 and raw_args[0] in site_keys:
         site, name, octet, port = raw_args
-        return site, name, octet, port
+        return False, site, name, octet, port
+
     if len(raw_args) == 3:
-        name, octet, port = raw_args
-        return None, name, octet, port
+        raise SystemExit(
+            f"npmpi add: 'npmpi add NODE-NAME OCTET PORT' (no site) was removed - it used to silently "
+            f"create a SEPARATE real backend on each site at the same octet, which is wrong unless both "
+            f"sites truly run identical backends. Say which site the backend really lives on instead:\n"
+            f"  npmpi add multi <SITE> {' '.join(raw_args)}   (real on <SITE>, mirrored onto every other site)\n"
+            f"  npmpi add <SITE> {' '.join(raw_args)}         (site-only, no mirroring)\n"
+            f"Configured sites: {site_keys}. Run `npmpi -e` for full syntax and examples."
+        )
+
     raise SystemExit(
-        f"npmpi add: expected '[SITE] NODE-NAME OCTET PORT' (SITE one of {site_keys}), "
-        f"got: {' '.join(raw_args)}\nRun `npmpi -e` for full syntax and examples."
+        f"npmpi add: expected 'SITE NODE-NAME OCTET PORT' or 'multi SITE NODE-NAME OCTET PORT' "
+        f"(SITE one of {site_keys}), got: {' '.join(raw_args)}\n"
+        f"Run `npmpi -e` for full syntax and examples."
     )
 
 
@@ -85,26 +119,24 @@ def _mirror_onto(cfg, creds, real_site_key: str, mirror_site_key: str, name: str
 
 def cmd_add(cfg, creds, args) -> int:
     site_keys = list(cfg["sites"].keys())
-    site, name, octet, port = _split_args(args.args, site_keys)
+    multi, site, name, octet, port = _split_args(args.args, site_keys)
     scheme = "https" if args.https else "http"
 
     failures: list[str] = []
 
-    if site is not None:
+    if not multi:
         failures += _add_one_site(cfg, creds, site, name, scheme, octet, port)
     else:
-        if len(site_keys) < 2:
-            print("Only one site is configured - nothing to mirror. Add a second site via `npmpi setup`, "
-                  "or specify a site letter explicitly.")
+        other_sites = [k for k in site_keys if k != site]
+        if not other_sites:
+            print(f"Only one site is configured - nothing to mirror '{site}' onto. Add a second site via "
+                  f"`npmpi setup`, or use `npmpi add {site} {name} {octet} {port}` instead.")
             return 1
-        s1, s2 = site_keys[0], site_keys[1]
-        backend1 = f"{cfg['sites'][s1]['ip_prefix']}{octet}"
-        backend2 = f"{cfg['sites'][s2]['ip_prefix']}{octet}"
 
-        failures += _add_one_site(cfg, creds, s1, name, scheme, octet, port)
-        failures += _add_one_site(cfg, creds, s2, name, scheme, octet, port)
-        failures += _mirror_onto(cfg, creds, s1, s2, name, scheme, backend1, port)
-        failures += _mirror_onto(cfg, creds, s2, s1, name, scheme, backend2, port)
+        real_backend_ip = f"{cfg['sites'][site]['ip_prefix']}{octet}"
+        failures += _add_one_site(cfg, creds, site, name, scheme, octet, port)
+        for mirror_site in other_sites:
+            failures += _mirror_onto(cfg, creds, site, mirror_site, name, scheme, real_backend_ip, port)
 
     print()
     if failures:

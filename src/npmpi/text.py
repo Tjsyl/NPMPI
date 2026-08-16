@@ -6,7 +6,8 @@ print the command overview too without a circular import against cli.py.
 PLAIN_HELP = """npmpi - manage Nginx Proxy Manager + Pi-hole hostnames across your sites
 
 Commands:
-  npmpi add [SITE] NODE-NAME [-s] OCTET PORT   Create a new hostname
+  npmpi add [multi] SITE NODE-NAME [-s] OCTET PORT
+                                                Create a hostname (multi = mirror to every other site)
   npmpi sync                                   Backfill cross-site mirroring
   npmpi list [SITE] [SEARCH]                   List/search proxy hosts, grouped by backend
   npmpi find [SITE] TERM                       Search one/every site for TERM, list-style table
