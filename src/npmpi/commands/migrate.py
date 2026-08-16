@@ -28,6 +28,26 @@ from npmpi.creds import get_npm_password, get_pihole_password
 
 FIELDS_TO_STRIP = {"id", "created_on", "modified_on", "owner_user_id", "certificate", "owner", "access_list"}
 
+# Backups default here (not the process's current working directory) because
+# an elevated PowerShell session's cwd is often reset to C:\Windows\System32
+# regardless of where it was launched from - if a bare relative filename
+# silently wrote there, the file "worked" but looked like it vanished. Any
+# absolute path the user enters at the prompt still overrides this.
+DEFAULT_BACKUP_DIR = Path.home() / "npmpi_backups"
+
+
+def _resolve_backup_path(raw: str) -> Path:
+    """Turn what was typed (or the default filename) into an absolute path,
+    always under DEFAULT_BACKUP_DIR unless the input was already absolute,
+    and make sure its parent directory exists before anything tries to
+    write there."""
+    path = Path(raw).expanduser()
+    if not path.is_absolute():
+        path = DEFAULT_BACKUP_DIR / path
+    path = path.resolve()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    return path
+
 
 def register(subparsers) -> None:
     p = subparsers.add_parser(
@@ -58,6 +78,15 @@ def _confirm(prompt: str) -> bool:
     return input(f"{prompt} (y/N): ").strip().lower() in ("y", "yes")
 
 
+def _print_backup_summary(backup_files: list[Path]) -> None:
+    """Printed at every exit point after the NPM backup exists - stopped
+    early, preview declined, or a migration actually completed - so the
+    backup location(s) are never something you have to scroll back to find."""
+    print("\nBackup file(s) from this run:")
+    for p in backup_files:
+        print(f"  {p}")
+
+
 def cmd_migrate(cfg, creds, args) -> int:
     site_key = _pick_site(cfg, args.site)
     site = cfg["sites"][site_key]
@@ -83,7 +112,8 @@ Nothing is written to the destination until you confirm the preview.
         return 1
 
     default_backup = f"npmpi_migrate_{site_key}_{datetime.date.today().isoformat()}.json"
-    backup_path = input(f"Path to save the NPM backup [{default_backup}]: ").strip() or default_backup
+    raw_backup_path = input(f"Path to save the NPM backup [{default_backup}]: ").strip() or default_backup
+    backup_path = _resolve_backup_path(raw_backup_path)
 
     pw = get_npm_password(creds, site_key)
     print(f"\n[npm] logging in to {site['npm']['url']} ...")
@@ -92,8 +122,14 @@ Nothing is written to the destination until you confirm the preview.
     certs = npm_api.get_certificates(site["npm"]["url"], token)
 
     out = {"source_url": site["npm"]["url"], "proxy_hosts": hosts, "certificates": certs}
-    Path(backup_path).write_text(json.dumps(out, indent=2), encoding="utf-8")
-    print(f"[npm] exported {len(hosts)} proxy hosts and {len(certs)} certificates -> {backup_path}")
+    backup_path.write_text(json.dumps(out, indent=2), encoding="utf-8")
+    print(f"[npm] exported {len(hosts)} proxy hosts and {len(certs)} certificates")
+    print(f"[npm] saved to: {backup_path}")
+
+    # Tracks every backup file actually written this run, so the final
+    # summary is accurate no matter how the command ends below (stopped
+    # after backup, preview declined, or a migration actually completed).
+    backup_files = [backup_path]
 
     if _confirm("Also back up this site's Pi-hole(s)?"):
         print("""
@@ -111,22 +147,26 @@ Nothing is written to the destination until you confirm the preview.
             for ph in site["piholes"]:
                 name = ph["name"]
                 default_zip = f"npmpi_migrate_{site_key}_{name}_teleporter_{datetime.date.today().isoformat()}.zip"
-                zip_path = input(f"Path to save {name}'s Teleporter backup [{default_zip}]: ").strip() or default_zip
+                raw_zip_path = input(f"Path to save {name}'s Teleporter backup [{default_zip}]: ").strip() or default_zip
+                zip_path = _resolve_backup_path(raw_zip_path)
                 try:
                     phpw = get_pihole_password(creds, site_key, name)
                     print(f"[{name}] logging in to {ph['url']} ...")
                     sid = pihole_api.login(ph["url"], phpw)
                     try:
                         archive = pihole_api.teleporter_export(ph["url"], sid)
-                        Path(zip_path).write_bytes(archive)
-                        print(f"[{name}] wrote Teleporter backup ({len(archive)} bytes) -> {zip_path}")
+                        zip_path.write_bytes(archive)
+                        print(f"[{name}] wrote Teleporter backup ({len(archive)} bytes)")
+                        print(f"[{name}] saved to: {zip_path}")
+                        backup_files.append(zip_path)
                     finally:
                         pihole_api.logout(ph["url"], sid)
                 except Exception as e:
                     print(f"[{name}] FAILED to back up: {e}")
         else:
             default_dns_backup = f"npmpi_migrate_{site_key}_pihole_dns_{datetime.date.today().isoformat()}.json"
-            dns_backup_path = input(f"Path to save the Pi-hole DNS backup [{default_dns_backup}]: ").strip() or default_dns_backup
+            raw_dns_backup_path = input(f"Path to save the Pi-hole DNS backup [{default_dns_backup}]: ").strip() or default_dns_backup
+            dns_backup_path = _resolve_backup_path(raw_dns_backup_path)
             dns_out = {}
             for ph in site["piholes"]:
                 name = ph["name"]
@@ -141,15 +181,15 @@ Nothing is written to the destination until you confirm the preview.
                         pihole_api.logout(ph["url"], sid)
                 except Exception as e:
                     print(f"[{name}] FAILED to back up: {e}")
-            Path(dns_backup_path).write_text(json.dumps(dns_out, indent=2), encoding="utf-8")
-            print(f"Wrote Pi-hole DNS backup -> {dns_backup_path}")
-        print(f"Wrote Pi-hole DNS backup -> {dns_backup_path}")
+            dns_backup_path.write_text(json.dumps(dns_out, indent=2), encoding="utf-8")
+            print(f"Wrote Pi-hole DNS backup -> saved to: {dns_backup_path}")
+            backup_files.append(dns_backup_path)
 
     print()
     dest_url = input(f"New NPM URL to migrate hosts onto (e.g. {site['npm']['url']}): ").strip()
     if not dest_url:
-        print("No destination given - stopping after backup. Your backup file is safe to use later:")
-        print(f"  {backup_path}")
+        print("No destination given - stopping after backup.")
+        _print_backup_summary(backup_files)
         return 0
     dest_email = input(f"Email for the new NPM [{site['npm']['email']}]: ").strip() or site["npm"]["email"]
     dest_pw = getpass.getpass("Password for the new NPM: ")
@@ -180,6 +220,7 @@ Nothing is written to the destination until you confirm the preview.
 
     if not _confirm(f"Create these {len(to_import)} proxy host(s) on {dest_url} now?"):
         print("Not applied. Your backup and this preview can be reused any time.")
+        _print_backup_summary(backup_files)
         return 0
 
     created, failed = [], []
@@ -198,4 +239,5 @@ Nothing is written to the destination until you confirm the preview.
             print(f"  FAILED: {', '.join(h['domain_names'])} :: {e}")
 
     print(f"\nDone. {len(created)} created, {len(failed)} failed.")
+    _print_backup_summary(backup_files)
     return 1 if failed else 0

@@ -8,6 +8,8 @@ PLAIN_HELP = """npmpi - manage Nginx Proxy Manager + Pi-hole hostnames across yo
 Commands:
   npmpi add [SITE] NODE-NAME [-s] OCTET PORT   Create a new hostname
   npmpi sync                                   Backfill cross-site mirroring
+  npmpi list [SITE] [SEARCH]                   List/search proxy hosts, grouped by backend
+  npmpi find [SITE] TERM                       Search one/every site for TERM, list-style table
   npmpi gen                                    Creates an index.html listing all your NPM nodes
   npmpi migrate [SITE]                         Move an NPM instance, with backups
   npmpi setup                                  Run / re-run interactive setup

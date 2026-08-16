@@ -10,7 +10,11 @@ npmpi add - create a new hostname (+ backend) on one or both sites.
 
 Idempotent: if the primary hostname already exists on a given NPM, that
 step is reported and skipped rather than erroring (no separate "append"
-command needed for the common case).
+command needed for the common case). Same idea if the OCTET/PORT you pass
+already belongs to a different existing hostname's backend - the new name
+gets appended onto that existing proxy host instead of creating a second
+one pointed at the same backend, so changing the IP later only means
+changing it in one place.
 """
 
 from __future__ import annotations

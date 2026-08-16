@@ -13,7 +13,7 @@ requests.packages.urllib3.disable_warnings()  # pihole admin UIs use self-signed
 
 
 def login(base_url: str, password: str) -> str:
-    resp = requests.post(f"{base_url}/api/auth", json={"password": password}, verify=False, timeout=15)
+    resp = requests.post(f"{base_url}/api/auth", json={"password": password}, verify=False, timeout=12)
     resp.raise_for_status()
     return resp.json()["session"]["sid"]
 
@@ -22,7 +22,7 @@ def add_host(base_url: str, sid: str, ip: str, hostname: str) -> None:
     value = f"{ip} {hostname}"
     encoded = urllib.parse.quote(value, safe="")
     url = f"{base_url}/api/config/dns%2Fhosts/{encoded}"
-    resp = requests.put(url, headers={"X-FTL-SID": sid}, verify=False, timeout=15)
+    resp = requests.put(url, headers={"X-FTL-SID": sid}, verify=False, timeout=12)
     if resp.status_code not in (200, 201, 204):
         raise RuntimeError(f"{resp.status_code} {resp.text}")
 
@@ -32,7 +32,7 @@ def add_host_safe(base_url: str, sid: str, ip: str, hostname: str) -> str:
     value = f"{ip} {hostname}"
     encoded = urllib.parse.quote(value, safe="")
     url = f"{base_url}/api/config/dns%2Fhosts/{encoded}"
-    resp = requests.put(url, headers={"X-FTL-SID": sid}, verify=False, timeout=15)
+    resp = requests.put(url, headers={"X-FTL-SID": sid}, verify=False, timeout=12)
     if resp.status_code in (200, 201, 204):
         return "added"
     if "already present" in resp.text.lower():
@@ -46,7 +46,7 @@ def get_hosts(base_url: str, sid: str) -> list[str]:
         f"{base_url}/api/config/dns/hosts",
         headers={"X-FTL-SID": sid},
         verify=False,
-        timeout=15,
+        timeout=12,
     )
     resp.raise_for_status()
     data = resp.json()

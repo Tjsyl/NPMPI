@@ -7,12 +7,13 @@ from __future__ import annotations
 
 import sys
 
-from npmpi.commands import add, gen, migrate, setup, sync
+from npmpi.commands import add, find, gen, migrate, setup, sync
+from npmpi.commands import list as list_cmd
 from npmpi.config import DEFAULT_CONFIG_PATH, config_exists, load_config
 from npmpi.creds import DEFAULT_CREDS_PATH, creds_exist, load_creds
 from npmpi.text import PLAIN_HELP
 
-COMMANDS = [add, sync, gen, migrate, setup]
+COMMANDS = [add, sync, list_cmd, find, gen, migrate, setup]
 
 
 def _help_sections() -> list[tuple]:
@@ -21,7 +22,9 @@ def _help_sections() -> list[tuple]:
             "add",
             "npmpi add [SITE] NODE-NAME [-s|--https] OCTET PORT",
             "Create a new hostname (+ backend). Safe to re-run - an already-existing "
-            "hostname is reported and skipped, not an error.",
+            "hostname is reported and skipped, not an error. If OCTET/PORT already "
+            "belongs to a different existing hostname, the new name is appended onto "
+            "that existing proxy host instead of creating a duplicate.",
             [
                 ("SITE", "Optional. One of your configured site letters (e.g. h/m) - creates "
                           "the hostname on that site only, no cross-site mirroring. Omit it "
@@ -60,6 +63,48 @@ def _help_sections() -> list[tuple]:
             ],
         ),
         (
+            "list",
+            "npmpi list [SITE] [SEARCH]",
+            "Column table of every proxy host - HTTP/HTTPS, HOST, IP, PORT. Hosts sharing "
+            "the same backend are grouped: the first row has all four columns, every other "
+            "hostname forwarding to that same backend gets its own row below with only HOST "
+            "filled in - so it's easy to see whether a backend already has a name before "
+            "adding another one. Optional SITE letter restricts it to one site (printed as "
+            "its own table); an optional SEARCH term filters to hostnames or backend IPs "
+            "containing it (case-insensitive).",
+            [],
+            [
+                "npmpi list",
+                "  -> every proxy host on every configured site, grouped by backend.",
+                "npmpi list h",
+                "  -> site 'h' only.",
+                "npmpi list prowl",
+                "  -> every site, filtered to anything matching 'prowl'.",
+                "npmpi list h prowl",
+                "  -> site 'h' only, filtered to 'prowl'.",
+            ],
+        ),
+        (
+            "find",
+            "npmpi find [SITE] TERM",
+            "Search for a hostname/backend across every configured site (or just one) and "
+            "print the match(es) using the same column table as `npmpi list`. Same "
+            "'[SITE] TERM' convention as `npmpi list` - an optional leading site letter "
+            "restricts the search to that site. When checking multiple sites, only sites "
+            "where TERM matches something are printed - a site with no match is skipped "
+            "silently instead of printing an empty table for it. If it's not found "
+            "anywhere it was checked, that's reported once instead.",
+            [],
+            [
+                "npmpi find esxi",
+                "  -> prints a table for each site that has a host/backend matching 'esxi'.",
+                "npmpi find portainer",
+                "  -> same, for 'portainer'.",
+                "npmpi find h esxi",
+                "  -> site 'h' only.",
+            ],
+        ),
+        (
             "gen",
             "npmpi gen [--output PATH] [--title TEXT]",
             "Creates an index.html listing all your NPM nodes - one clickable card per "
@@ -93,7 +138,11 @@ def _help_sections() -> list[tuple]:
             "Interactively move a site's NPM proxy hosts to a new NPM instance. "
             "Explains what it's about to do, backs up the source NPM's proxy hosts "
             "to a JSON file you choose the path for, then previews the import before "
-            "creating anything on the destination.",
+            "creating anything on the destination. A relative path/bare filename is "
+            "saved under ~\\npmpi_backups (not whatever folder the shell happened to "
+            "start in - e.g. an elevated PowerShell's cwd is often C:\\Windows\\System32) "
+            "- give an absolute path to save somewhere else. The full saved-to path is "
+            "always printed after each backup.",
             [
                 ("Pi-hole backup (asked interactively, not a flag)",
                  "After the NPM backup, you're offered a backup of that site's Pi-hole(s) "
@@ -230,7 +279,7 @@ def main(argv: list[str] | None = None) -> None:
     for mod in COMMANDS:
         mod.register(subparsers)
 
-    if cmd_name not in {"add", "sync", "gen", "migrate", "setup"}:
+    if cmd_name not in {"add", "sync", "list", "find", "gen", "migrate", "setup"}:
         print(f"Unknown command: {cmd_name}\n")
         print(PLAIN_HELP)
         sys.exit(1)

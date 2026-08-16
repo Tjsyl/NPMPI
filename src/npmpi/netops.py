@@ -43,10 +43,17 @@ def create_or_skip_proxy_host(site_cfg: dict[str, Any], creds: dict, site_key: s
                                hostnames: list[str], scheme: str, backend_ip: str,
                                backend_port: int | str, label: str) -> tuple[bool, str]:
     """
-    Create a new proxy host for hostnames[0..] on this site's NPM. If a host
-    with hostnames[0] already exists, this is treated as idempotent success
-    (not an error) - matches the "auto-detect, don't hard-fail" behavior
-    npmpi add uses instead of the old separate append* scripts.
+    Create a new proxy host for hostnames[0..] on this site's NPM, unless
+    one of two idempotent cases applies:
+      1. A host with hostnames[0] already exists - reported and left as-is
+         (not an error) - matches the "auto-detect, don't hard-fail"
+         behavior npmpi add uses instead of the old separate append* scripts.
+      2. A DIFFERENT host already forwards to this exact scheme/IP/port
+         (e.g. you're adding a second name for a backend that's already
+         proxied under another hostname) - the new hostname(s) get appended
+         onto that existing host's domain_names instead of creating a
+         second proxy host pointed at the same backend. This is what keeps
+         "change the IP once, every alias picks it up" true.
     Returns (ok, message).
     """
     npm_cfg = site_cfg["npm"]
@@ -58,6 +65,18 @@ def create_or_skip_proxy_host(site_cfg: dict[str, Any], creds: dict, site_key: s
     already = npm_api.find_proxy_host(hostnames[0], existing)
     if already is not None:
         msg = f"[{label}] {hostnames[0]} already exists on this NPM (host #{already['id']}) - leaving as-is"
+        print(msg)
+        return True, msg
+
+    same_backend = npm_api.find_proxy_host_by_backend(scheme, backend_ip, backend_port, existing)
+    if same_backend is not None:
+        updated_names = npm_api.update_proxy_host_add_names(npm_cfg["url"], token, same_backend, hostnames)
+        existing_names = ", ".join(same_backend.get("domain_names", []))
+        msg = (
+            f"[{label}] {scheme}://{backend_ip}:{backend_port} is already proxy host #{same_backend['id']} "
+            f"({existing_names}) - appended {', '.join(hostnames)} to it instead of creating a duplicate "
+            f"(now: {', '.join(updated_names)})"
+        )
         print(msg)
         return True, msg
 

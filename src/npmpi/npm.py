@@ -10,9 +10,17 @@ from typing import Any
 
 import requests
 
+# How long to wait for an NPM instance to respond before giving up - kept
+# short (rather than requests' no-timeout default or a longer value) so a
+# site that's expected to be down (e.g. off-VPN) gets reported and skipped
+# quickly by callers like `npmpi list`/`npmpi find` instead of hanging.
+TIMEOUT = 12
+
 
 def login(base_url: str, email: str, password: str) -> str:
-    resp = requests.post(f"{base_url}/api/tokens", json={"identity": email, "secret": password}, timeout=15)
+    resp = requests.post(
+        f"{base_url}/api/tokens", json={"identity": email, "secret": password}, timeout=TIMEOUT,
+    )
     resp.raise_for_status()
     return resp.json()["token"]
 
@@ -21,7 +29,7 @@ def get_proxy_hosts(base_url: str, token: str) -> list[dict[str, Any]]:
     resp = requests.get(
         f"{base_url}/api/nginx/proxy-hosts",
         headers={"Authorization": f"Bearer {token}"},
-        timeout=15,
+        timeout=TIMEOUT,
     )
     resp.raise_for_status()
     return resp.json()
@@ -31,7 +39,7 @@ def get_certificates(base_url: str, token: str) -> list[dict[str, Any]]:
     resp = requests.get(
         f"{base_url}/api/nginx/certificates",
         headers={"Authorization": f"Bearer {token}"},
-        timeout=15,
+        timeout=TIMEOUT,
     )
     resp.raise_for_status()
     return resp.json()
@@ -50,6 +58,24 @@ def find_cert(hostname: str, certs: list[dict[str, Any]]) -> int:
 def find_proxy_host(hostname: str, hosts: list[dict[str, Any]]) -> dict[str, Any] | None:
     for h in hosts:
         if hostname in h.get("domain_names", []):
+            return h
+    return None
+
+
+def find_proxy_host_by_backend(
+    scheme: str, backend_ip: str, backend_port: int | str, hosts: list[dict[str, Any]],
+) -> dict[str, Any] | None:
+    """Find an existing proxy host that already forwards to this exact
+    scheme/IP/port, regardless of hostname. Used so a second hostname for
+    the same backend gets appended onto that host's domain_names instead of
+    creating a second, duplicate proxy host pointed at the same place."""
+    port = int(backend_port)
+    for h in hosts:
+        if (
+            h.get("forward_scheme") == scheme
+            and h.get("forward_host") == backend_ip
+            and int(h.get("forward_port", -1)) == port
+        ):
             return h
     return None
 
@@ -78,7 +104,7 @@ def create_proxy_host(
         f"{base_url}/api/nginx/proxy-hosts",
         headers={"Authorization": f"Bearer {token}"},
         json=body,
-        timeout=15,
+        timeout=TIMEOUT,
     )
     if not resp.ok:
         raise RuntimeError(f"{resp.status_code} {resp.text}")
@@ -121,7 +147,7 @@ def update_proxy_host_add_names(
         f"{base_url}/api/nginx/proxy-hosts/{host['id']}",
         headers={"Authorization": f"Bearer {token}"},
         json=body,
-        timeout=15,
+        timeout=TIMEOUT,
     )
     if not resp.ok:
         raise RuntimeError(f"{resp.status_code} {resp.text}")
