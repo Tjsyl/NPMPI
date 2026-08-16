@@ -154,6 +154,41 @@ Safe to re-run: if a hostname already exists on the target NPM, that step
 is reported and skipped rather than erroring - no separate "append"
 command needed for the common case.
 
+### `npmpi delete`
+
+```
+npmpi delete [SITE] [TERM]
+```
+
+Same `[SITE] TERM` convention as `npmpi find`. With no `TERM`, prints a
+numbered list of every hostname (or just `SITE`'s) and asks `Please
+select a number`; if `TERM` uniquely matches one entry, skips straight to
+the confirmation prompt instead.
+
+Every proxy host's domain names are numbered individually - the
+**primary** name (the first, alphabetically) and every **alias** (an
+extra domain name sharing that same backend):
+
+- Selecting a **primary** deletes the **entire proxy host** - every
+  domain name on it, from NPM, plus the Pi-hole DNS record for each of
+  them on this site's pihole(s):
+  `Are you sure you want to remove http://test.home.example.com 10.0.1.99 at port 8888 from NPM and its DNS records from pihole1 and pihole2?`
+- Selecting an **alias** removes **only that one domain name** from NPM
+  (the host, its backend, and its other domain names are untouched),
+  plus that domain name's own Pi-hole DNS record - it got one of its own
+  when it was added, same as any primary:
+  `Are you sure you want to remove the http://test2.home.example.com additional domain name from NPM and its DNS record from pihole1 and pihole2?`
+
+Nothing is deleted without a `y`/`N` confirmation - picking a number
+alone never deletes anything. Only ever acts on the **one** site the
+selected entry belongs to - a hostname mirrored onto other sites via
+`npmpi add multi` needs its own separate delete there; there's no
+cross-site cascade.
+
+The GUI's List/Find tab has the same delete built in: check a row's
+confirm checkbox (top-right, opposite Refresh) to enable the Delete
+button, then confirm the same way.
+
 ### `npmpi sync`
 
 ```

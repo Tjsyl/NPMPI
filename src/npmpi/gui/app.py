@@ -128,7 +128,7 @@ class NpmpiApp(ctk.CTk):
         name = self.tab_bar.selected
         return name, TAB_TO_COMMANDS.get(name, [])
 
-    def _load_state(self, initial: bool = False) -> None:
+    def _load_state(self, initial: bool = False, skip: object | None = None) -> None:
         if config_exists():
             self.cfg = load_config()
         else:
@@ -139,6 +139,8 @@ class NpmpiApp(ctk.CTk):
             self.creds = {}
         if not initial:
             for tab in self._tabs:
+                if tab is skip:
+                    continue
                 refresh = getattr(tab, "on_config_reloaded", None)
                 if refresh:
                     refresh()
@@ -147,11 +149,21 @@ class NpmpiApp(ctk.CTk):
     def has_config(self) -> bool:
         return bool(self.cfg.get("sites"))
 
-    def reload(self) -> None:
+    def reload(self, skip: object | None = None) -> None:
         """Called by any tab (typically Setup) after it writes config.json/
         credentials.dat, so every other open tab picks up the change without
-        needing a restart."""
-        self._load_state(initial=False)
+        needing a restart.
+
+        skip: pass the calling tab itself (e.g. `self.app.reload(skip=self)`)
+        to refresh every OTHER tab's config-dependent state without also
+        rebuilding the caller's own screen. Setup's per-field Save buttons
+        need this - Setup's on_config_reloaded() does a full _build() that
+        destroys and recreates every field from disk, which would silently
+        wipe any not-yet-saved text a user had typed into a DIFFERENT field
+        on the same page (e.g. renaming two Pi-holes, saving the first,
+        which used to blow away the still-unsaved second rename back to its
+        old on-disk name)."""
+        self._load_state(initial=False, skip=skip)
 
 
 def run_app() -> None:

@@ -156,3 +156,54 @@ def update_proxy_host_add_names(
 
 def domains_for_suffix(host: dict[str, Any], suffix: str) -> list[str]:
     return [d for d in host.get("domain_names", []) if d == suffix or d.endswith("." + suffix)]
+
+
+def delete_proxy_host(base_url: str, token: str, host_id: int) -> None:
+    """Delete a proxy host entirely (all of its domain names go with it)."""
+    resp = requests.delete(
+        f"{base_url}/api/nginx/proxy-hosts/{host_id}",
+        headers={"Authorization": f"Bearer {token}"},
+        timeout=TIMEOUT,
+    )
+    if not resp.ok:
+        raise RuntimeError(f"{resp.status_code} {resp.text}")
+
+
+def update_proxy_host_remove_names(
+    base_url: str, token: str, host: dict[str, Any], names_to_remove: list[str],
+) -> list[str]:
+    """Remove names_to_remove from an existing proxy host's domain_names,
+    keeping everything else (backend, cert, etc.) unchanged - the mirror
+    image of update_proxy_host_add_names. The host itself is left in place
+    even if only one name remains. Raises if this would strip every domain
+    name off the host (NPM requires at least one) - callers should route
+    that case through delete_proxy_host instead."""
+    domain_names = [d for d in host["domain_names"] if d not in names_to_remove]
+    if not domain_names:
+        raise ValueError("Cannot remove every domain name from a proxy host - delete the host instead.")
+
+    body = {
+        "domain_names": domain_names,
+        "forward_scheme": host["forward_scheme"],
+        "forward_host": host["forward_host"],
+        "forward_port": host["forward_port"],
+        "access_list_id": host.get("access_list_id", 0),
+        "certificate_id": host.get("certificate_id", 0),
+        "ssl_forced": host.get("ssl_forced", False),
+        "http2_support": host.get("http2_support", False),
+        "block_exploits": host.get("block_exploits", False),
+        "caching_enabled": host.get("caching_enabled", False),
+        "allow_websocket_upgrade": host.get("allow_websocket_upgrade", True),
+        "meta": host.get("meta", {}),
+        "advanced_config": host.get("advanced_config", ""),
+        "locations": host.get("locations", []),
+    }
+    resp = requests.put(
+        f"{base_url}/api/nginx/proxy-hosts/{host['id']}",
+        headers={"Authorization": f"Bearer {token}"},
+        json=body,
+        timeout=TIMEOUT,
+    )
+    if not resp.ok:
+        raise RuntimeError(f"{resp.status_code} {resp.text}")
+    return domain_names

@@ -1,8 +1,8 @@
 """
-Shared operations that both `npmpi add` and `npmpi sync` use: pushing a
-Pi-hole DNS record to every pihole on a site, and creating (or idempotently
-skipping) an NPM proxy host. Kept in one place so add/sync/append behavior
-can't drift apart from each other.
+Shared operations that `npmpi add`, `npmpi sync`, and `npmpi delete` all
+use: pushing (or removing) a Pi-hole DNS record on every pihole on a site,
+and creating (or idempotently skipping) an NPM proxy host. Kept in one
+place so add/sync/delete behavior can't drift apart from each other.
 """
 
 from __future__ import annotations
@@ -31,6 +31,34 @@ def push_dns_to_site(site_cfg: dict[str, Any], creds: dict, site_key: str,
                         print(f"[{name}] added: {target_ip} {h}")
                     else:
                         print(f"[{name}] {h} already present, skipping")
+            finally:
+                pihole_api.logout(ph["url"], sid)
+        except Exception as e:
+            print(f"[{name}] FAILED: {e}")
+            failures.append(name)
+    return failures
+
+
+def remove_dns_from_site(site_cfg: dict[str, Any], creds: dict, site_key: str,
+                          hostnames: list[str], target_ip: str) -> list[str]:
+    """Remove each hostname's DNS record from every pihole configured for
+    this site - the mirror image of push_dns_to_site. Returns list of
+    failure strings. A record that's already gone (or never existed) is a
+    soft no-op, not a failure - same idempotent spirit as add_host_safe."""
+    failures = []
+    for ph in site_cfg["piholes"]:
+        name = ph["name"]
+        try:
+            pw = get_pihole_password(creds, site_key, name)
+            print(f"\n[{name}] logging in to {ph['url']} ...")
+            sid = pihole_api.login(ph["url"], pw)
+            try:
+                for h in hostnames:
+                    status = pihole_api.delete_host_safe(ph["url"], sid, target_ip, h)
+                    if status == "removed":
+                        print(f"[{name}] removed: {target_ip} {h}")
+                    else:
+                        print(f"[{name}] {h} not present, skipping")
             finally:
                 pihole_api.logout(ph["url"], sid)
         except Exception as e:

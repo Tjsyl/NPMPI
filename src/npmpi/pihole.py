@@ -40,6 +40,28 @@ def add_host_safe(base_url: str, sid: str, ip: str, hostname: str) -> str:
     raise RuntimeError(f"{resp.status_code} {resp.text}")
 
 
+def delete_host(base_url: str, sid: str, ip: str, hostname: str) -> None:
+    value = f"{ip} {hostname}"
+    encoded = urllib.parse.quote(value, safe="")
+    url = f"{base_url}/api/config/dns%2Fhosts/{encoded}"
+    resp = requests.delete(url, headers={"X-FTL-SID": sid}, verify=False, timeout=12)
+    if resp.status_code not in (200, 204):
+        raise RuntimeError(f"{resp.status_code} {resp.text}")
+
+
+def delete_host_safe(base_url: str, sid: str, ip: str, hostname: str) -> str:
+    """Like delete_host, but treats 'not found' as a soft skip. Returns a status string."""
+    value = f"{ip} {hostname}"
+    encoded = urllib.parse.quote(value, safe="")
+    url = f"{base_url}/api/config/dns%2Fhosts/{encoded}"
+    resp = requests.delete(url, headers={"X-FTL-SID": sid}, verify=False, timeout=12)
+    if resp.status_code in (200, 204):
+        return "removed"
+    if resp.status_code == 404 or "not found" in resp.text.lower() or "does not exist" in resp.text.lower():
+        return "not_found"
+    raise RuntimeError(f"{resp.status_code} {resp.text}")
+
+
 def get_hosts(base_url: str, sid: str) -> list[str]:
     """Return the raw list of 'ip hostname' custom DNS record strings."""
     resp = requests.get(

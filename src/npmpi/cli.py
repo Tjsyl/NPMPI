@@ -7,13 +7,13 @@ from __future__ import annotations
 
 import sys
 
-from npmpi.commands import add, find, gen, gui, migrate, setup, sync
+from npmpi.commands import add, delete, find, gen, gui, migrate, setup, sync
 from npmpi.commands import list as list_cmd
 from npmpi.config import DEFAULT_CONFIG_PATH, config_exists, load_config
 from npmpi.creds import DEFAULT_CREDS_PATH, creds_exist, load_creds
 from npmpi.text import PLAIN_HELP
 
-COMMANDS = [add, sync, list_cmd, find, gen, migrate, setup, gui]
+COMMANDS = [add, sync, list_cmd, find, delete, gen, migrate, setup, gui]
 
 
 def _help_sections() -> list[tuple]:
@@ -109,6 +109,31 @@ def _help_sections() -> list[tuple]:
                 "  -> same, for 'portainer'.",
                 "npmpi find h esxi",
                 "  -> site 'h' only.",
+            ],
+        ),
+        (
+            "delete",
+            "npmpi delete [SITE] [TERM]",
+            "Remove a hostname (and its Pi-hole DNS record(s)) from NPM. Same "
+            "'[SITE] TERM' convention as `npmpi find`. Every proxy host's domain names "
+            "are numbered - selecting the PRIMARY (first, alphabetically) name deletes "
+            "the entire proxy host plus its Pi-hole DNS record(s) on this site; "
+            "selecting an ALIAS (any other name on that same host) removes just that one "
+            "name from NPM (leaving the host, its backend, and its other names alone) "
+            "plus that name's own Pi-hole DNS record. Only ever touches the ONE site the "
+            "selected entry belongs to - a hostname mirrored via `npmpi add multi` onto "
+            "other sites needs its own separate delete there. Always asks for a yes/no "
+            "confirmation before deleting anything.",
+            [],
+            [
+                "npmpi delete",
+                "  -> numbered list of every hostname on every site, then 'Please select a number'.",
+                "npmpi delete h",
+                "  -> numbered list restricted to site 'h'.",
+                "npmpi delete test.home.example.com",
+                "  -> unique match, skips straight to the confirmation prompt.",
+                "npmpi delete h test",
+                "  -> site 'h' only, filtered to 'test'.",
             ],
         ),
         (
@@ -298,7 +323,7 @@ def main(argv: list[str] | None = None) -> None:
     for mod in COMMANDS:
         mod.register(subparsers)
 
-    if cmd_name not in {"add", "sync", "list", "find", "gen", "migrate", "setup", "gui"}:
+    if cmd_name not in {"add", "sync", "list", "find", "delete", "gen", "migrate", "setup", "gui"}:
         print(f"Unknown command: {cmd_name}\n")
         print(PLAIN_HELP)
         sys.exit(1)

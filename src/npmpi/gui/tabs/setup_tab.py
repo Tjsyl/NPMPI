@@ -148,7 +148,11 @@ class SetupTab:
         write_config(self.app.cfg)
         self._save_creds()
         self._status(f"Saved site '{site_key}' NPM config.")
-        self.app.reload()
+        # skip=self: refresh every OTHER tab, but don't rebuild this page's
+        # own fields - that would wipe any not-yet-saved edits typed into
+        # other fields on this same Setup screen (e.g. a pending Pi-hole
+        # rename below). See app.py's reload() docstring.
+        self.app.reload(skip=self)
 
     def _save_pihole(self, site_key: str, idx: int, name: str, url: str, new_pw: str) -> None:
         name, url = name.strip(), url.strip()
@@ -167,7 +171,8 @@ class SetupTab:
         write_config(self.app.cfg)
         self._save_creds()
         self._status(f"Saved Pi-hole '{name}' on site '{site_key}'.")
-        self.app.reload()
+        # skip=self - see _save_npm's comment above.
+        self.app.reload(skip=self)
 
     def _add_pihole(self, site_key: str, name: str, url: str, pw: str) -> None:
         name, url = name.strip(), url.strip()
