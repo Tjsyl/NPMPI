@@ -14,6 +14,7 @@ Commands:
   npmpi migrate [SITE]                         Move an NPM instance, with backups
   npmpi setup                                  Run / re-run interactive setup
                                                 (npmpi setup --fix to correct one thing instead)
+  npmpi gui                                    Launch the desktop GUI (every command, one window)
 
 Run `npmpi -e` for full syntax and examples for every command.
 Run `npmpi setup -h` for just the setup section of that (including --fix).

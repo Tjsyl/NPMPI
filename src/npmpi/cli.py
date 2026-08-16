@@ -7,13 +7,13 @@ from __future__ import annotations
 
 import sys
 
-from npmpi.commands import add, find, gen, migrate, setup, sync
+from npmpi.commands import add, find, gen, gui, migrate, setup, sync
 from npmpi.commands import list as list_cmd
 from npmpi.config import DEFAULT_CONFIG_PATH, config_exists, load_config
 from npmpi.creds import DEFAULT_CREDS_PATH, creds_exist, load_creds
 from npmpi.text import PLAIN_HELP
 
-COMMANDS = [add, sync, list_cmd, find, gen, migrate, setup]
+COMMANDS = [add, sync, list_cmd, find, gen, migrate, setup, gui]
 
 
 def _help_sections() -> list[tuple]:
@@ -163,6 +163,18 @@ def _help_sections() -> list[tuple]:
             ],
         ),
         (
+            "gui",
+            "npmpi gui",
+            "Launch the npmpi desktop GUI - every command available as a tab in one window, "
+            "calling the same underlying code the CLI does. Safe to run before `npmpi setup` "
+            "has ever been run - opens straight to the Setup tab in that case.",
+            [],
+            [
+                "npmpi gui",
+                "  -> opens the GUI window.",
+            ],
+        ),
+        (
             "setup",
             "npmpi setup",
             "Interactive setup wizard: how many sites, each site's domain/IP scheme/"
@@ -279,7 +291,7 @@ def main(argv: list[str] | None = None) -> None:
     for mod in COMMANDS:
         mod.register(subparsers)
 
-    if cmd_name not in {"add", "sync", "list", "find", "gen", "migrate", "setup"}:
+    if cmd_name not in {"add", "sync", "list", "find", "gen", "migrate", "setup", "gui"}:
         print(f"Unknown command: {cmd_name}\n")
         print(PLAIN_HELP)
         sys.exit(1)

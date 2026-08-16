@@ -1,4 +1,4 @@
-name: Build and release npmpi.exe
+name: Build and release npmpi
 
 on:
   push:
@@ -65,15 +65,21 @@ jobs:
         shell: pwsh
         run: python scripts/gen_version_info.py "${{ steps.ver.outputs.version }}" version_info.txt
 
-      - name: Build one-file exe
+      - name: Build CLI one-file exe (npmpi.exe)
         run: |
-          pyinstaller --onefile --name npmpi --console --version-file version_info.txt --paths src src/npmpi/__main__.py
+          pyinstaller --onefile --name npmpi --console --version-file version_info.txt --icon src/npmpi/gui/assets/icon.ico --add-data "src/npmpi/gui/assets;npmpi/gui/assets" --collect-all customtkinter --paths src src/npmpi/__main__.py
 
-      - name: Upload exe artifact
+      - name: Build GUI one-file exe (npmpigui.exe)
+        run: |
+          pyinstaller --onefile --name npmpigui --windowed --version-file version_info.txt --icon src/npmpi/gui/assets/icon.ico --add-data "src/npmpi/gui/assets;npmpi/gui/assets" --collect-all customtkinter --paths src src/npmpi/gui_main.py
+
+      - name: Upload exe artifacts
         uses: actions/upload-artifact@v4
         with:
           name: npmpi-windows-exe
-          path: dist/npmpi.exe
+          path: |
+            dist/npmpi.exe
+            dist/npmpigui.exe
 
       - name: Install Inno Setup
         run: choco install innosetup -y --no-progress
@@ -95,4 +101,5 @@ jobs:
         with:
           files: |
             dist/npmpi.exe
+            dist/npmpigui.exe
             installer_output/npmpi-setup.exe

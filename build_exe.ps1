@@ -1,11 +1,21 @@
 <#
 .SYNOPSIS
-  Build a standalone npmpi.exe locally with PyInstaller.
+  Build standalone npmpi.exe + npmpigui.exe locally with PyInstaller.
 
 .DESCRIPTION
-  Produces dist\npmpi.exe - a single file with Python + all dependencies
-  bundled in, so it runs on a machine with no Python installed at all.
-  Must be run ON Windows (PyInstaller doesn't cross-compile).
+  Produces dist\npmpi.exe (CLI, console subsystem - what goes on PATH for
+  terminal use) and dist\npmpigui.exe (always opens straight to the GUI,
+  no console at all - what a desktop/Start Menu shortcut should point to
+  for double-click use). Both are single files with Python + all
+  dependencies bundled in, so they run on a machine with no Python
+  installed at all. Must be run ON Windows (PyInstaller doesn't
+  cross-compile).
+
+  Two separate executables rather than one that tries to guess how it was
+  launched: PyInstaller's onefile bootloader makes double-click-vs-
+  terminal detection from inside a single exe unreliable (tried it, see
+  git history / commands/gui.py's docstring for why) - one exe per
+  subsystem sidesteps that entirely instead of guessing.
 
   This is what the GitHub Actions release workflow (.github/workflows/
   release.yml) runs automatically on every version tag - use this script
@@ -98,7 +108,7 @@ function Get-UpxDir {
     return $null
 }
 
-Write-Host "=== building npmpi.exe ===" -ForegroundColor Cyan
+Write-Host "=== building npmpi.exe + npmpigui.exe ===" -ForegroundColor Cyan
 
 & $py -m pip install --upgrade pip pyinstaller -q
 & $py -m pip install -e . -q
@@ -108,23 +118,42 @@ $version = "0.0.0"
 if ($pyprojectContent -match 'version\s*=\s*"([^"]+)"') {
     $version = $Matches[1]
 }
-Write-Host "Stamping exe with version $version (from pyproject.toml)" -ForegroundColor DarkGray
+Write-Host "Stamping with version $version (from pyproject.toml)" -ForegroundColor DarkGray
 & $py scripts/gen_version_info.py $version version_info.txt
 
-$pyinstallerArgs = @("--onefile", "--name", "npmpi", "--console", "--version-file", "version_info.txt", "--paths", "src", "src/npmpi/__main__.py")
-
+$upxDir = $null
 if ($NoUpx) {
     Write-Host "Skipping UPX (-NoUpx passed)" -ForegroundColor DarkGray
 } else {
     $upxDir = Get-UpxDir
     if ($upxDir) {
         Write-Host "Compressing with UPX from $upxDir" -ForegroundColor DarkGray
-        $pyinstallerArgs = @("--upx-dir", $upxDir) + $pyinstallerArgs
     }
 }
 
-& $py -m PyInstaller @pyinstallerArgs
+function Invoke-PyInstallerBuild {
+    param(
+        [string]$Name,
+        [string]$EntryScript,
+        [switch]$Windowed
+    )
 
-Write-Host "`nBuilt: dist\npmpi.exe" -ForegroundColor Green
-Write-Host "Copy it anywhere on PATH, or run install.ps1 to fetch the CI-built release exe from GitHub instead."
-Write-Host "If antivirus flags this build, re-run with .\build_exe.ps1 -NoUpx to rule out UPX compression."
+    $piArgs = @("--onefile", "--name", $Name, "--version-file", "version_info.txt",
+        "--icon", "src/npmpi/gui/assets/icon.ico",
+        "--add-data", "src/npmpi/gui/assets;npmpi/gui/assets",
+        "--collect-all", "customtkinter", "--paths", "src", $EntryScript)
+    $piArgs += if ($Windowed) { "--windowed" } else { "--console" }
+    if ($upxDir) {
+        $piArgs = @("--upx-dir", $upxDir) + $piArgs
+    }
+
+    Write-Host "`n--- building $Name.exe ---" -ForegroundColor DarkCyan
+    & $py -m PyInstaller @piArgs
+}
+
+Invoke-PyInstallerBuild -Name "npmpi" -EntryScript "src/npmpi/__main__.py"
+Invoke-PyInstallerBuild -Name "npmpigui" -EntryScript "src/npmpi/gui_main.py" -Windowed
+
+Write-Host "`nBuilt: dist\npmpi.exe (CLI - put this on PATH) and dist\npmpigui.exe (always opens the GUI - shortcut this for double-click use)" -ForegroundColor Green
+Write-Host "Or run install.ps1 to fetch the CI-built release exes from GitHub instead."
+Write-Host "If antivirus flags either build, re-run with .\build_exe.ps1 -NoUpx to rule out UPX compression."
