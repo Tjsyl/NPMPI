@@ -77,8 +77,8 @@ Source: "dist\npmpigui\*"; DestDir: "{app}\npmpigui"; Flags: ignoreversion recur
 Name: "desktopicon"; Description: "Create a desktop shortcut for the npmpi GUI"; GroupDescription: "Additional shortcuts:"; Flags: unchecked
 
 [Icons]
-Name: "{group}\npmpi"; Filename: "{app}\{#MyAppGuiExeName}"; Comment: "Open the npmpi GUI"
-Name: "{userdesktop}\npmpi"; Filename: "{app}\{#MyAppGuiExeName}"; Tasks: desktopicon; Comment: "Open the npmpi GUI"
+Name: "{group}\NpmPi"; Filename: "{app}\{#MyAppGuiExeName}"; Comment: "Open the npmpi GUI"
+Name: "{userdesktop}\NpmPi"; Filename: "{app}\{#MyAppGuiExeName}"; Tasks: desktopicon; Comment: "Open the npmpi GUI"
 
 [Code]
 const

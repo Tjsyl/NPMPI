@@ -51,7 +51,7 @@ def _asset_path(name: str) -> Path:
 class NpmpiApp(ctk.CTk):
     def __init__(self) -> None:
         super().__init__()
-        self.title("npmpi")
+        self.title("NpmPi")
         self.geometry("980x640")
         self.minsize(760, 480)
         self._set_icon()
@@ -63,7 +63,7 @@ class NpmpiApp(ctk.CTk):
 
         header = ctk.CTkFrame(self, fg_color="transparent")
         header.pack(fill="x", padx=16, pady=(14, 0))
-        ctk.CTkLabel(header, text="npmpi", font=ctk.CTkFont(size=18, weight="bold")).pack(side="left")
+        ctk.CTkLabel(header, text="NpmPi", font=ctk.CTkFont(size=18, weight="bold")).pack(side="left")
         theme.make_mode_switcher(header).pack(side="right")
 
         tab_row = ctk.CTkFrame(self, fg_color="transparent")

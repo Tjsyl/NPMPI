@@ -16,8 +16,8 @@
 
   <InstallDir>\npmpi (not InstallDir itself) is added to your user PATH
   so `npmpi` works from any terminal (cmd, PowerShell, Windows Terminal),
-  and a Start Menu shortcut to npmpigui.exe is added for double-click GUI
-  access.
+  and a "NpmPi" Start Menu shortcut to npmpigui.exe is added for
+  double-click GUI access.
 
   Safe to re-run any time - it just re-downloads and re-extracts the
   latest release.
@@ -42,6 +42,29 @@ $ErrorActionPreference = "Stop"
 Write-Host "=== npmpi installer ===" -ForegroundColor Cyan
 
 New-Item -ItemType Directory -Force -Path $InstallDir | Out-Null
+
+# Clean up remnants of the old (pre-onedir) install layout, where both exes
+# lived loose directly in $InstallDir and $InstallDir itself (not a
+# subfolder) was put on PATH. Anyone who installed before this rewrite has
+# those stale files/PATH entry sitting around, silently shadowing the new
+# npmpi\npmpi\ / npmpi\npmpigui\ subfolders whenever `npmpi`/`npmpigui` is
+# typed - clean them out before doing anything else, so re-running this
+# script is enough to fully self-heal onto the new layout.
+foreach ($staleExe in @("npmpi.exe", "npmpigui.exe")) {
+    $staleExePath = Join-Path $InstallDir $staleExe
+    if (Test-Path $staleExePath -PathType Leaf) {
+        Write-Host "Removing stale $staleExePath left over from an older install layout ..." -ForegroundColor DarkGray
+        Remove-Item -Force $staleExePath
+    }
+}
+
+$normalizedInstallDir = $InstallDir.TrimEnd('\')
+$userPathEntries = ([Environment]::GetEnvironmentVariable("PATH", "User") -split ';') | Where-Object { $_ }
+if ($userPathEntries | Where-Object { $_.TrimEnd('\') -ieq $normalizedInstallDir }) {
+    Write-Host "Removing stale PATH entry '$InstallDir' left over from an older install layout ..." -ForegroundColor DarkGray
+    $cleanedPath = ($userPathEntries | Where-Object { $_.TrimEnd('\') -ine $normalizedInstallDir }) -join ';'
+    [Environment]::SetEnvironmentVariable("PATH", $cleanedPath, "User")
+}
 
 $apiUrl = "https://api.github.com/repos/$RepoOwner/$RepoName/releases/latest"
 Write-Host "Checking latest release ($apiUrl) ..."
@@ -77,7 +100,16 @@ foreach ($appName in @("npmpi", "npmpigui")) {
 $guiExePath = Join-Path $appDirs["npmpigui"] "npmpigui.exe"
 try {
     $programsDir = Join-Path ([Environment]::GetFolderPath("StartMenu")) "Programs"
-    $shortcutPath = Join-Path $programsDir "npmpi.lnk"
+
+    # Remove the old-named shortcut from before the rename, so re-running
+    # this script doesn't leave both "npmpi" and "NpmPi" sitting in the
+    # Start Menu side by side.
+    $oldShortcutPath = Join-Path $programsDir "npmpi.lnk"
+    if (Test-Path $oldShortcutPath) {
+        Remove-Item -Force $oldShortcutPath
+    }
+
+    $shortcutPath = Join-Path $programsDir "NpmPi.lnk"
     $wshell = New-Object -ComObject WScript.Shell
     $shortcut = $wshell.CreateShortcut($shortcutPath)
     $shortcut.TargetPath = $guiExePath
@@ -100,4 +132,4 @@ if ($userPath -notlike "*$cliDir*") {
 }
 
 Write-Host "`nDone. In a new terminal, run:  npmpi setup" -ForegroundColor Green
-Write-Host "Or use the 'npmpi' shortcut in your Start Menu to open the GUI directly." -ForegroundColor Green
+Write-Host "Or use the 'NpmPi' shortcut in your Start Menu to open the GUI directly." -ForegroundColor Green
