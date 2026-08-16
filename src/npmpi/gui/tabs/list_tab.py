@@ -65,6 +65,18 @@ def _style_treeview() -> None:
     )
     style.map("npmpi.Treeview", background=[("selected", "#1f6aa5")])
 
+    # ttk.Style().configure() alone doesn't reliably force an ALREADY-DRAWN
+    # Treeview to repaint on Windows - a known ttk quirk where existing rows
+    # keep whatever colors were cached at their last draw until something
+    # forces a harder refresh (this is why detouring through "System" before
+    # "Dark" used to "unstick" it - that extra click happened to trigger a
+    # fuller repaint as a side effect). Toggling the active theme off and
+    # back forces ttk to fully discard and rebuild its style/element cache,
+    # which reliably repaints every existing row on every switch, not just
+    # some of them.
+    style.theme_use("default")
+    style.theme_use("clam")
+
 
 theme.add_appearance_listener(_style_treeview)
 
@@ -133,7 +145,34 @@ class ListTab:
         # item id -> (site_key, host dict, domain name this row represents, is_primary)
         self.item_meta: dict[str, tuple[str, dict, str, bool]] = {}
 
+        # theme.add_appearance_listener(_style_treeview) above gives an
+        # instant restyle for direct Light/Dark clicks, which resolve
+        # synchronously. "System" mode does NOT resolve synchronously in
+        # customtkinter - clicking it only flags "check periodically", and
+        # the actual OS-theme detection happens ~30ms later via CTk's own
+        # internal polling loop (confirmed by reading
+        # AppearanceModeTracker.set_appearance_mode()'s source: the
+        # "system" branch only sets a flag, it never calls
+        # detect_appearance_mode() itself). CTk's own widgets are wired
+        # into that same internal loop and pick up the correction
+        # automatically; our ttk.Treeview isn't a CTk widget, so it never
+        # gets that delayed correction - it would call our listener once,
+        # synchronously, with whatever mode was still stale at that exact
+        # moment, and then never hear from System's actual resolution.
+        # This lightweight poll of the same public ctk.get_appearance_mode()
+        # this tab already relies on is how the tree stays in sync with
+        # System mode's delayed resolution too, not just direct clicks.
+        self._last_appearance_mode = ctk.get_appearance_mode()
+        self._poll_appearance_mode()
+
         self.on_config_reloaded()
+
+    def _poll_appearance_mode(self) -> None:
+        mode = ctk.get_appearance_mode()
+        if mode != self._last_appearance_mode:
+            self._last_appearance_mode = mode
+            _style_treeview()
+        self.frame.after(200, self._poll_appearance_mode)
 
     def _on_tree_select(self, _evt=None) -> None:
         # A new row selection invalidates any prior confirm-checkbox state -
