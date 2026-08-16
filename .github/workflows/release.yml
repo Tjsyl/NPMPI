@@ -50,16 +50,6 @@ jobs:
             Write-Host "Could not install UPX after 3 attempts - proceeding without compression."
           }
 
-      - name: Build one-file exe
-        run: |
-          pyinstaller --onefile --name npmpi --console --paths src src/npmpi/__main__.py
-
-      - name: Upload exe artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: npmpi-windows-exe
-          path: dist/npmpi.exe
-
       - name: Determine installer version
         id: ver
         shell: pwsh
@@ -70,6 +60,20 @@ jobs:
             $v = "0.0.0-dev"
           }
           echo "version=$v" >> $env:GITHUB_OUTPUT
+
+      - name: Generate Windows version-info resource
+        shell: pwsh
+        run: python scripts/gen_version_info.py "${{ steps.ver.outputs.version }}" version_info.txt
+
+      - name: Build one-file exe
+        run: |
+          pyinstaller --onefile --name npmpi --console --version-file version_info.txt --paths src src/npmpi/__main__.py
+
+      - name: Upload exe artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: npmpi-windows-exe
+          path: dist/npmpi.exe
 
       - name: Install Inno Setup
         run: choco install innosetup -y --no-progress

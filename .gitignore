@@ -6,6 +6,7 @@ dist/
 .venv/
 installer_output/
 *.spec
+version_info.txt
 
 # Never commit real config/credentials
 config.json

@@ -103,7 +103,15 @@ Write-Host "=== building npmpi.exe ===" -ForegroundColor Cyan
 & $py -m pip install --upgrade pip pyinstaller -q
 & $py -m pip install -e . -q
 
-$pyinstallerArgs = @("--onefile", "--name", "npmpi", "--console", "--paths", "src", "src/npmpi/__main__.py")
+$pyprojectContent = Get-Content -Raw -Path "pyproject.toml"
+$version = "0.0.0"
+if ($pyprojectContent -match 'version\s*=\s*"([^"]+)"') {
+    $version = $Matches[1]
+}
+Write-Host "Stamping exe with version $version (from pyproject.toml)" -ForegroundColor DarkGray
+& $py scripts/gen_version_info.py $version version_info.txt
+
+$pyinstallerArgs = @("--onefile", "--name", "npmpi", "--console", "--version-file", "version_info.txt", "--paths", "src", "src/npmpi/__main__.py")
 
 if ($NoUpx) {
     Write-Host "Skipping UPX (-NoUpx passed)" -ForegroundColor DarkGray
