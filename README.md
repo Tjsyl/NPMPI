@@ -219,12 +219,42 @@ client-side search box. Self-contained HTML (no external CSS/JS), so it
 works fine served from a purely offline/LAN web server. It reads live
 from NPM every time it runs - nothing about the dashboard's contents is
 frozen at setup time, only *which* site/path/title to use is configured
-once.
+once. It also writes a second file, `dashboard-settings.html`, in the
+same folder - the settings page linked from the gear icon (see below).
 
 The output path **must include the filename** (e.g.
 `\\server\share\home-services\index.html`), not just a folder. If it's
 given a path ending in a folder separator by mistake, it writes
 `index.html` inside that folder rather than erroring.
+
+#### Settings: accent color, dark mode, drag-reorder, icon upload
+
+Click the gear icon in the top-right of the dashboard to open
+`dashboard-settings.html`, where you can:
+
+- Pick an **accent color** - use the color picker or type a hex value
+  directly (e.g. `#5a8dee`).
+- Force **Light** or **Dark** instead of following the OS/browser
+  ("System", the default).
+- **Upload an icon** to use as the tab icon and title logo.
+
+Back on the dashboard itself, toggling **Reorder Cards** lets you drag
+services into any order you like - it saves automatically as soon as you
+drop a card. New hosts that show up after a later `npmpi gen` are
+appended to the end of whatever order you'd already set, not mixed back
+into alphabetical order.
+
+All of this is written by the **browser**, not by npmpi, into a small
+JSON file (`dashboard-prefs.json`) it creates next to `index.html` the
+first time you change something. That means the server hosting the page
+needs to accept an HTTP `PUT` to that one file - see "Example home
+setup" below for a WebDAV-based way to do that. If the server refuses
+the `PUT`, the settings page shows a "could not save" message and the
+dashboard itself keeps working fine, just without persisted
+preferences. Regenerating the dashboard never resets any of this, since
+it all lives in that separate file npmpi doesn't touch.
+
+#### Browser tab icon + title logo
 
 For a browser tab icon *and* a 72x72 logo to the left of the page title
 (vertically centered against the title + services/generated-date lines
@@ -236,13 +266,53 @@ and subtitle just show centered on their own, exactly as before (e.g.
 "Home Services" or whatever custom title you set via
 `npmpi setup --gen`, with no icon). Matching is case-insensitive; if
 more than one icon file is present, `.ico` wins, then `.png`/`.svg`,
-then anything else (alphabetically as a final tiebreak).
+then anything else (alphabetically as a final tiebreak). An icon
+uploaded through the settings page (above) takes priority over this
+file at runtime, but doesn't replace it on disk.
 
 If `gen` was skipped during `npmpi setup`, running `npmpi gen` walks you
 through picking a site/output path/title on the spot and saves the
 choice to `config.json` for next time. Already configured but need to
 change the site/path/title? `npmpi setup --gen` re-runs just that (see
 [`npmpi setup`](#npmpi-setup) below) instead of the whole wizard.
+
+#### Example home setup, with WebDAV for the settings page
+
+One way to actually serve the generated page: run an `nginx:alpine`
+container whose web root is a folder under Unraid's appdata share (e.g.
+`/mnt/user/appdata/home-services/index/`), and expose that *same* folder
+as a Samba/SMB share (e.g. `\\<server>\appdata\home-services\index\`).
+Point `--output` (or `npmpi setup --gen`) at that SMB path from whatever
+Windows machine runs `npmpi gen` - npmpi writes `index.html` straight
+onto the share, nginx serves whatever's currently there, no separate
+upload/deploy step needed. Same share is also where the icon-file
+convention above gets dropped.
+
+To make the settings page's Save button actually work, nginx also needs
+its WebDAV module (already compiled into the stock `nginx:alpine` image
+- confirm with `nginx -V 2>&1 | grep -o with-http_dav_module`) enabled
+for a `/npmpi-config/` path, PUT only, restricted to your LAN's subnet:
+
+```nginx
+location /npmpi-config/ {
+    dav_methods PUT;
+    create_full_put_path on;
+    dav_access user:rw group:r all:r;
+
+    allow 10.10.0.0/24;
+    deny all;
+
+    client_max_body_size 5m;
+}
+```
+
+That has to live *inside* the site's existing `server { ... }` block
+(usually `/etc/nginx/conf.d/default.conf`), not as a standalone file
+dropped into `conf.d/` - a bare `location` block outside a `server`
+block is invalid and will stop nginx from starting. Isolating writes to
+`/npmpi-config/` this way is deliberate: it's the only path that's
+writable, so `index.html` and everything else on the site stay
+read-only.
 
 ### `npmpi migrate`
 

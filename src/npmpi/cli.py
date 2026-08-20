@@ -141,12 +141,31 @@ def _help_sections() -> list[tuple]:
             "npmpi gen [--output PATH] [--title TEXT]",
             "Creates an index.html listing all your NPM nodes - one clickable card per "
             "enabled proxy host on a site's NPM, alphabetically sorted, with a "
-            "client-side search box. Regenerate it any time a host's added/removed/"
-            "renamed. If never configured, walks you through picking a site/output "
-            "path/title first and saves that choice to config.json. Output path must "
-            "include the filename (e.g. ...\\index.html) - a path ending in a folder "
-            "separator gets index.html appended automatically rather than erroring.",
+            "client-side search box. Also writes a second file, dashboard-settings.html, "
+            "in the same folder - a settings page for the dashboard (see below). "
+            "Regenerate it any time a host's added/removed/renamed - your accent color, "
+            "dark mode choice, card order, and uploaded icon all live in a separate file "
+            "the browser manages (not npmpi), so regenerating never resets them. If never "
+            "configured, walks you through picking a site/output path/title first and "
+            "saves that choice to config.json. Output path must include the filename "
+            "(e.g. ...\\index.html) - a path ending in a folder separator gets index.html "
+            "appended automatically rather than erroring.",
             [
+                ("Settings page - accent color, dark mode, drag-reorder, icon upload",
+                 "The gear icon (top-right of the dashboard) opens dashboard-settings.html, "
+                 "where you can pick an accent color (color picker or type a hex value "
+                 "directly), force Light/Dark instead of following the OS/browser "
+                 "('System', the default), and upload a tab/logo icon. Back on the "
+                 "dashboard, toggling 'Reorder Cards' lets you drag services into any "
+                 "order - it saves automatically on drop. All of this is written by the "
+                 "BROWSER, not by npmpi, to a small JSON file (dashboard-prefs.json) it "
+                 "creates next to index.html the first time you change something - so it "
+                 "needs the server hosting the page to accept an HTTP PUT to that one "
+                 "file (see 'Example home setup' below for how). If the server refuses "
+                 "the PUT, the settings page shows a 'could not save' message and the "
+                 "dashboard itself keeps working fine, just without persisted "
+                 "preferences. New hosts that show up after a regenerate are appended "
+                 "to the end of whatever order you'd already set."),
                 ("Browser tab icon + title logo (automatic, not a flag)",
                  "Drop any file named *icon.* (e.g. favicon.ico, icon.png, tab-icon.svg) "
                  "in the same folder as the generated index.html - picked up automatically "
@@ -155,7 +174,25 @@ def _help_sections() -> list[tuple]:
                  "title + services/generated-date lines together. If none found, the title "
                  "and subtitle just show centered on their own, same as before. Case-"
                  "insensitive; if more than one matches, .ico wins, then .png/.svg, then "
-                 "anything else."),
+                 "anything else. An icon uploaded through the settings page (above) takes "
+                 "priority over this file at runtime, but doesn't replace it on disk."),
+                ("Example home setup, with WebDAV for the settings page (informational, not a flag)",
+                 "One way to actually serve the generated page: run an nginx:alpine "
+                 "container whose web root is a folder under Unraid's appdata share "
+                 "(e.g. /mnt/user/appdata/home-services/index/), and expose that SAME "
+                 "folder as a Samba/SMB share (e.g. \\\\<server>\\appdata\\home-services\\"
+                 "index\\). Point --output (or `npmpi setup --gen`) at that SMB path from "
+                 "whatever Windows machine runs `npmpi gen` - npmpi writes index.html "
+                 "straight onto the share, nginx serves whatever's currently there, no "
+                 "separate upload/deploy step needed. Same share is also where the "
+                 "icon-file convention above gets dropped. To make the settings page's "
+                 "Save button actually work, nginx also needs its WebDAV module (already "
+                 "compiled into the stock nginx:alpine image) enabled for a "
+                 "/npmpi-config/ path, PUT only, restricted to your LAN's subnet - e.g. "
+                 "a location block with `dav_methods PUT; create_full_put_path on; "
+                 "allow 10.10.0.0/24; deny all;`. That path is kept separate from the "
+                 "rest of the site on purpose, so index.html and everything else stay "
+                 "read-only."),
             ],
             [
                 "npmpi gen",
