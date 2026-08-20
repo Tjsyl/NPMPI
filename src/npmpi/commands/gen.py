@@ -540,12 +540,18 @@ SETTINGS_PAGE_TEMPLATE = """<!DOCTYPE html>
   button:hover {{ opacity: 0.9; }}
   a.back {{ color: var(--subtitle); text-decoration: none; font-size: 0.9em; }}
   a.back:hover {{ color: var(--accent); }}
+  .home-btn {{ position: fixed; top: 16px; right: 16px; width: 40px; height: 40px; border-radius: 50%;
+               background: var(--card-bg); border: 1px solid var(--card-border); color: var(--fg);
+               display: flex; align-items: center; justify-content: center; font-size: 1.3em;
+               text-decoration: none; cursor: pointer; transition: border-color 0.15s, transform 0.15s; }}
+  .home-btn:hover {{ border-color: var(--accent); transform: scale(1.05); }}
   .status {{ margin-top: 14px; font-size: 0.85em; }}
   .status.ok {{ color: #4caf50; }}
   .status.error {{ color: #e37b7b; }}
 </style>
 </head>
 <body>
+<a class="home-btn" href="index.html" title="Back to dashboard">&#8962;</a>
 <div class="panel">
   <h1>{title} - Settings</h1>
 
@@ -636,7 +642,8 @@ function saveAll() {{
     .then(function() {{ return savePrefs(currentPrefs); }})
     .then(function(r) {{
       if (!r.ok) throw new Error('save failed');
-      showStatus('Saved.', false);
+      showStatus('Saved - returning to dashboard...', false);
+      setTimeout(function() {{ window.location.href = 'index.html'; }}, 1500);
     }})
     .catch(function(e) {{
       showStatus('Could not save - are you on the local network? (' + e.message + ')', true);
