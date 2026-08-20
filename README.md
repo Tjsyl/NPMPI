@@ -185,9 +185,20 @@ selected entry belongs to - a hostname mirrored onto other sites via
 `npmpi add multi` needs its own separate delete there; there's no
 cross-site cascade.
 
-The GUI's List/Find tab has the same delete built in: check a row's
-confirm checkbox (top-right, opposite Refresh) to enable the Delete
-button, then confirm the same way.
+The GUI's List/Find tab has the same delete built in: select row(s),
+check **Confirm delete**, then click the action button (reads "Delete"
+in this mode) and confirm the same way.
+
+The same tab can also edit a host's backend IP/Port directly: tick
+**Edit IP/Port** - the action button switches to reading "Confirm" - then
+double-click a primary row's IP or Port cell to edit it in place (aliases
+share their host's backend, so they aren't independently editable).
+Edits are staged - the cell updates immediately and the row is
+highlighted - until the action button is clicked, which shows a
+confirmation listing every old → new IP:Port before pushing anything to
+NPM. Unticking Edit IP/Port discards any unsaved staged edits. There's
+one shared button rather than two separate ones - what it does and how
+it's labeled always matches whichever mode is currently ticked.
 
 ### `npmpi sync`
 

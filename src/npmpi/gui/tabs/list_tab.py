@@ -18,7 +18,25 @@ row in one confirmation + one batch of API calls, via
 commands/delete.py's confirm_message_for_selection()/delete_selection(),
 which handle deduping (e.g. a primary and one of its own aliases both
 selected) and grouping (multiple aliases off the same host batched into
-one NPM update rather than racing each other one call at a time)."""
+one NPM update rather than racing each other one call at a time).
+
+Ticking "Edit IP/Port" turns on inline editing: double-clicking a PRIMARY
+row's IP or Port cell (aliases share their host's backend, so they're not
+independently editable) opens a small text entry right over that cell.
+Enter/click-away stages the change (shown immediately in the cell, row
+tagged "pending" until saved); Escape discards just that one edit.
+
+There's one shared action button (not two separate ones) whose label and
+behavior depend on which mode is active: with "Edit IP/Port" ticked it
+reads "Confirm" and, like Delete, shows a confirmation listing every
+staged old -> new IP:Port before pushing anything (via
+npm.update_proxy_host_backend()); otherwise it reads "Delete" and behaves
+exactly as before, gated by the "Confirm delete" checkbox + a tree
+selection. All of the row-1 controls (site dropdown, search, Refresh)
+plus the row-2 controls (status, the two checkboxes, the action button)
+live in one FlowRow (see widgets.py) that wraps row 2 onto its own line
+once the window's too narrow to fit everything on one row, instead of
+the two groups overlapping."""
 
 from __future__ import annotations
 
@@ -33,11 +51,21 @@ from npmpi import npm as npm_api
 from npmpi.commands.delete import _Entry, confirm_message_for_selection, delete_selection
 from npmpi.creds import get_npm_password
 from npmpi.gui import theme
+from npmpi.gui.widgets import FlowRow
 
 ALL_SITES = "All sites"
 
 _DARK = {"bg": "#242424", "fg": "#dce4ee", "heading_bg": "#333333"}
 _LIGHT = {"bg": "#f5f5f5", "fg": "#1a1a1a", "heading_bg": "#dbdbdb"}
+
+_DELETE_STYLE = {
+    "fg_color": "transparent", "border_width": 2, "border_color": "#e05656",
+    "text_color": "#e05656", "hover_color": "#3a2020",
+}
+_CONFIRM_STYLE = {
+    "fg_color": "#3d7eff", "border_width": 0, "border_color": "#3d7eff",
+    "text_color": "white", "hover_color": "#2f63cc",
+}
 
 
 def _style_treeview() -> None:
@@ -90,37 +118,64 @@ class ListTab:
         controls = ctk.CTkFrame(self.frame, fg_color="transparent")
         controls.pack(fill="x", pady=(0, 10))
 
+        self.row1 = ctk.CTkFrame(controls, fg_color="transparent")
+        self.row1.pack(fill="x")
+        self.row2 = ctk.CTkFrame(controls, fg_color="transparent")
+        self.row2.pack(fill="x", pady=(8, 0))
+
+        # Every control's master is `controls` - which row (row1/row2) each
+        # one actually lands in is decided live by the FlowRow built below,
+        # not fixed here (same pattern as add_tab.py/gen_tab.py).
         self.site_var = tk.StringVar(value=ALL_SITES)
         self.site_menu = ctk.CTkOptionMenu(controls, variable=self.site_var, values=[ALL_SITES])
-        self.site_menu.pack(side="left")
 
         # No textvariable - always starts empty, needs the placeholder to work
         # (see add_tab.py's note on why textvariable + placeholder_text conflict).
         self.search_var = ctk.CTkEntry(controls, placeholder_text="Search hostname or IP...", width=280)
-        self.search_var.pack(side="left", padx=10)
         self.search_var.bind("<Return>", lambda _e: self.refresh())
 
-        ctk.CTkButton(controls, text="Refresh", width=90, command=self.refresh).pack(side="left")
-
-        # Right side, opposite Refresh: a confirm checkbox + Delete button.
-        # Packed side="right" in this order (delete_btn first) so delete_btn
-        # lands at the outermost right edge, checkbox just to its left, and
-        # status further left still - see pack(side="right") stacking order.
-        self.delete_btn = ctk.CTkButton(
-            controls, text="Delete", width=90, state="disabled",
-            fg_color="transparent", border_width=2, border_color="#e05656",
-            text_color="#e05656", hover_color="#3a2020", command=self._on_delete,
-        )
-        self.delete_btn.pack(side="right")
-
-        self.delete_confirm_var = tk.BooleanVar(value=False)
-        ctk.CTkCheckBox(
-            controls, text="", width=20, variable=self.delete_confirm_var,
-            command=self._update_delete_state,
-        ).pack(side="right", padx=(0, 8))
+        self.refresh_btn = ctk.CTkButton(controls, text="Refresh", width=90, command=self.refresh)
 
         self.status = ctk.CTkLabel(controls, text="", text_color=("gray30", "gray70"))
-        self.status.pack(side="right", padx=(0, 12))
+
+        # Mode toggle: unticking it discards any staged, unsaved edits.
+        self.edit_mode_var = tk.BooleanVar(value=False)
+        self.edit_check = ctk.CTkCheckBox(
+            controls, text="Edit IP/Port", width=20, variable=self.edit_mode_var,
+            command=self._on_toggle_edit_mode,
+        )
+
+        # Gate for the Delete side of the shared button below - only relevant
+        # when Edit IP/Port is unticked.
+        self.delete_confirm_var = tk.BooleanVar(value=False)
+        self.delete_check = ctk.CTkCheckBox(
+            controls, text="Confirm delete", width=20, variable=self.delete_confirm_var,
+            command=self._update_action_button,
+        )
+
+        # One shared button instead of two - its text/color/enabled state and
+        # what it actually does are entirely driven by edit_mode_var, kept in
+        # sync by _update_action_button() (called from every place that could
+        # change either mode's readiness: selection, checkboxes, edits staged/
+        # cleared, refresh).
+        self.action_btn = ctk.CTkButton(
+            controls, text="Delete", width=100, state="disabled",
+            command=self._on_action, **_DELETE_STYLE,
+        )
+
+        self.flow = FlowRow(
+            container=controls, row1=self.row1, row2=self.row2,
+            items=[
+                (self.site_menu, 0),
+                (self.search_var, 10),
+                (self.refresh_btn, 8),
+                (self.status, 16),
+                (self.edit_check, 16),
+                (self.delete_check, 12),
+                (self.action_btn, 12),
+            ],
+            wrap_index=3,
+        )
 
         _style_treeview()
         tree_frame = ctk.CTkFrame(self.frame)
@@ -141,9 +196,20 @@ class ListTab:
         vsb.pack(side="right", fill="y")
 
         self.tree.bind("<<TreeviewSelect>>", self._on_tree_select)
+        self.tree.bind("<Double-1>", self._on_tree_double_click)
+        # Amber, not tied to the Light/Dark palette - reads fine against
+        # either background, so it doesn't need re-applying in
+        # _style_treeview() the way the base colors do.
+        self.tree.tag_configure("pending", foreground="#e0a020")
 
         # item id -> (site_key, host dict, domain name this row represents, is_primary)
         self.item_meta: dict[str, tuple[str, dict, str, bool]] = {}
+        # item id -> {"orig_ip", "orig_port", and "ip"/"port" if changed} -
+        # staged edits not yet pushed to NPM. Only primary rows appear here.
+        self.pending_edits: dict[str, dict] = {}
+        # (Entry widget, row_id, field) for whichever cell editor is
+        # currently open, or None - at most one at a time.
+        self._active_editor: tuple[tk.Entry, str, str] | None = None
 
         # theme.add_appearance_listener(_style_treeview) above gives an
         # instant restyle for direct Light/Dark clicks, which resolve
@@ -179,12 +245,28 @@ class ListTab:
         # force re-confirming rather than letting a stale checked box let a
         # newly-selected row get deleted without a fresh, deliberate check.
         self.delete_confirm_var.set(False)
-        self._update_delete_state()
+        self._update_action_button()
 
-    def _update_delete_state(self) -> None:
-        sel = self.tree.selection()
-        ok = bool(sel) and all(i in self.item_meta for i in sel) and self.delete_confirm_var.get()
-        self.delete_btn.configure(state="normal" if ok else "disabled")
+    def _update_action_button(self) -> None:
+        """Keeps the one shared button's label/color/enabled-state in sync
+        with whichever mode is active - called after anything that could
+        change either mode's readiness (selection, either checkbox, an edit
+        staged/discarded, or a refresh)."""
+        if self.edit_mode_var.get():
+            self.action_btn.configure(text="Confirm", **_CONFIRM_STYLE)
+            state = "normal" if self.pending_edits else "disabled"
+        else:
+            self.action_btn.configure(text="Delete", **_DELETE_STYLE)
+            sel = self.tree.selection()
+            ok = bool(sel) and all(i in self.item_meta for i in sel) and self.delete_confirm_var.get()
+            state = "normal" if ok else "disabled"
+        self.action_btn.configure(state=state)
+
+    def _on_action(self) -> None:
+        if self.edit_mode_var.get():
+            self._on_save_edits()
+        else:
+            self._on_delete()
 
     def on_config_reloaded(self) -> None:
         site_keys = list(self.app.cfg.get("sites", {}).keys())
@@ -203,11 +285,13 @@ class ListTab:
         return any(q in d.lower() for d in host.get("domain_names", []))
 
     def refresh(self) -> None:
+        self._cancel_active_editor()
         for item in self.tree.get_children():
             self.tree.delete(item)
         self.item_meta = {}
+        self.pending_edits = {}
         self.delete_confirm_var.set(False)
-        self.delete_btn.configure(state="disabled", text="Delete")
+        self._update_action_button()
 
         site_keys = list(self.app.cfg.get("sites", {}).keys())
         if not site_keys:
@@ -291,7 +375,7 @@ class ListTab:
         if not messagebox.askyesno("Confirm delete", msg):
             return
 
-        self.delete_btn.configure(state="disabled", text="Deleting...")
+        self.action_btn.configure(state="disabled", text="Deleting...")
 
         def worker() -> None:
             try:
@@ -305,4 +389,149 @@ class ListTab:
     def _delete_done(self, failures: list[str]) -> None:
         if failures:
             messagebox.showerror("Delete", f"Completed with failures in: {', '.join(failures)}")
+        self.refresh()
+
+    def _on_toggle_edit_mode(self) -> None:
+        self._cancel_active_editor()
+        if not self.edit_mode_var.get():
+            self._discard_pending_edits()
+        self._update_action_button()
+
+    def _discard_pending_edits(self) -> None:
+        for row_id, edit in self.pending_edits.items():
+            if not self.tree.exists(row_id):
+                continue
+            self.tree.set(row_id, "ip", edit["orig_ip"])
+            self.tree.set(row_id, "port", edit["orig_port"])
+            tags = tuple(t for t in self.tree.item(row_id, "tags") if t != "pending")
+            self.tree.item(row_id, tags=tags)
+        self.pending_edits = {}
+
+    def _on_tree_double_click(self, event) -> str | None:
+        if not self.edit_mode_var.get():
+            return None
+        if self.tree.identify_region(event.x, event.y) != "cell":
+            return None
+        row_id = self.tree.identify_row(event.y)
+        col_id = self.tree.identify_column(event.x)
+        if row_id not in self.item_meta:
+            return None
+        _site_key, _host, _domain, is_primary = self.item_meta[row_id]
+        if not is_primary:
+            return None  # aliases share their host's backend - not independently editable
+        field = {"#2": "ip", "#3": "port"}.get(col_id)
+        if not field:
+            return None
+        self._open_cell_editor(row_id, col_id, field)
+        return "break"  # suppress the default double-click expand/collapse
+
+    def _open_cell_editor(self, row_id: str, col_id: str, field: str) -> None:
+        self._cancel_active_editor()
+        bbox = self.tree.bbox(row_id, col_id)
+        if not bbox:
+            return
+        x, y, width, height = bbox
+        entry = tk.Entry(self.tree)
+        entry.insert(0, self.tree.set(row_id, field))
+        entry.select_range(0, "end")
+        entry.place(x=x, y=y, width=width, height=height)
+        entry.focus_set()
+        entry.bind("<Return>", lambda _e: self._commit_active_editor())
+        entry.bind("<Escape>", lambda _e: self._cancel_active_editor())
+        entry.bind("<FocusOut>", lambda _e: self._commit_active_editor())
+        self._active_editor = (entry, row_id, field)
+
+    def _commit_active_editor(self) -> None:
+        if self._active_editor is None:
+            return
+        entry, row_id, field = self._active_editor
+        self._active_editor = None
+        value = entry.get().strip()
+        entry.destroy()
+        self._commit_cell_edit(row_id, field, value)
+
+    def _cancel_active_editor(self) -> None:
+        if self._active_editor is None:
+            return
+        entry, _row_id, _field = self._active_editor
+        self._active_editor = None
+        entry.destroy()
+
+    def _commit_cell_edit(self, row_id: str, field: str, new_value: str) -> None:
+        if row_id not in self.item_meta or not self.tree.exists(row_id):
+            return
+        _site_key, host, _domain, is_primary = self.item_meta[row_id]
+        if not is_primary:
+            return
+        if new_value == self.tree.set(row_id, field):
+            return  # unchanged (or user just re-typed the same value) - nothing to stage
+
+        if field == "port":
+            if not new_value.isdigit() or not (1 <= int(new_value) <= 65535):
+                messagebox.showerror("Invalid port", f"'{new_value}' isn't a valid port (1-65535).")
+                return
+        elif field == "ip" and not new_value:
+            messagebox.showerror("Invalid IP", "IP/hostname can't be empty.")
+            return
+
+        edit = self.pending_edits.setdefault(row_id, {
+            "orig_ip": str(host.get("forward_host", "")),
+            "orig_port": str(host.get("forward_port", "")),
+        })
+        edit[field] = new_value
+        self.tree.set(row_id, field, new_value)
+
+        still_changed = (
+            edit.get("ip", edit["orig_ip"]) != edit["orig_ip"]
+            or edit.get("port", edit["orig_port"]) != edit["orig_port"]
+        )
+        if still_changed:
+            self.tree.item(row_id, tags=("pending",))
+        else:
+            # Edited back to the original value(s) - nothing left to save
+            # for this row, drop it rather than leave a no-op staged edit.
+            del self.pending_edits[row_id]
+            tags = tuple(t for t in self.tree.item(row_id, "tags") if t != "pending")
+            self.tree.item(row_id, tags=tags)
+
+        self._update_action_button()
+
+    def _on_save_edits(self) -> None:
+        if not self.pending_edits:
+            return
+        lines = []
+        for row_id, edit in self.pending_edits.items():
+            _site_key, host, _domain, _is_primary = self.item_meta[row_id]
+            new_ip = edit.get("ip", edit["orig_ip"])
+            new_port = edit.get("port", edit["orig_port"])
+            names = ", ".join(sorted(host.get("domain_names", []), key=str.lower))
+            lines.append(f"{names}: {edit['orig_ip']}:{edit['orig_port']} -> {new_ip}:{new_port}")
+        msg = f"Apply the following {len(lines)} change(s) to NPM?\n\n" + "\n".join(lines)
+        if not messagebox.askyesno("Confirm changes", msg):
+            return
+
+        self.action_btn.configure(state="disabled", text="Saving...")
+        edits_to_apply = dict(self.pending_edits)
+
+        def worker() -> None:
+            failures = []
+            for row_id, edit in edits_to_apply.items():
+                site_key, host, _domain, _is_primary = self.item_meta[row_id]
+                new_ip = edit.get("ip", edit["orig_ip"])
+                new_port = edit.get("port", edit["orig_port"])
+                names = ", ".join(host.get("domain_names", []))
+                try:
+                    npm_cfg = self.app.cfg["sites"][site_key]["npm"]
+                    pw = get_npm_password(self.app.creds, site_key)
+                    token = npm_api.login(npm_cfg["url"], npm_cfg["email"], pw)
+                    npm_api.update_proxy_host_backend(npm_cfg["url"], token, host, new_ip, new_port)
+                except Exception as e:  # noqa: BLE001 - reported, not swallowed
+                    failures.append(f"{names}: {e}")
+            self.frame.after(0, lambda: self._save_edits_done(failures))
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    def _save_edits_done(self, failures: list[str]) -> None:
+        if failures:
+            messagebox.showerror("Save changes", "Completed with failures:\n\n" + "\n".join(failures))
         self.refresh()

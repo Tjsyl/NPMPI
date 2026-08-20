@@ -154,6 +154,39 @@ def update_proxy_host_add_names(
     return domain_names
 
 
+def update_proxy_host_backend(
+    base_url: str, token: str, host: dict[str, Any], backend_ip: str, backend_port: int | str,
+) -> dict[str, Any]:
+    """Change just the backend forward_host/forward_port on an existing
+    proxy host - domain_names, cert, and every other setting untouched.
+    Used by the GUI's List/Find inline IP/Port edit."""
+    body = {
+        "domain_names": host["domain_names"],
+        "forward_scheme": host["forward_scheme"],
+        "forward_host": backend_ip,
+        "forward_port": int(backend_port),
+        "access_list_id": host.get("access_list_id", 0),
+        "certificate_id": host.get("certificate_id", 0),
+        "ssl_forced": host.get("ssl_forced", False),
+        "http2_support": host.get("http2_support", False),
+        "block_exploits": host.get("block_exploits", False),
+        "caching_enabled": host.get("caching_enabled", False),
+        "allow_websocket_upgrade": host.get("allow_websocket_upgrade", True),
+        "meta": host.get("meta", {}),
+        "advanced_config": host.get("advanced_config", ""),
+        "locations": host.get("locations", []),
+    }
+    resp = requests.put(
+        f"{base_url}/api/nginx/proxy-hosts/{host['id']}",
+        headers={"Authorization": f"Bearer {token}"},
+        json=body,
+        timeout=TIMEOUT,
+    )
+    if not resp.ok:
+        raise RuntimeError(f"{resp.status_code} {resp.text}")
+    return resp.json()
+
+
 def domains_for_suffix(host: dict[str, Any], suffix: str) -> list[str]:
     return [d for d in host.get("domain_names", []) if d == suffix or d.endswith("." + suffix)]
 

@@ -5,6 +5,15 @@ than reusing setup.py's cmd_setup (which is a long blocking input()/
 getpass() wizard) - same data model (see commands/setup.py's _setup_site),
 just collected through fields instead of sequential prompts. Gen's own
 config is edited from the Generate tab, not duplicated here.
+
+The NPM row, each existing Pi-hole row, and the "add a Pi-hole" row are
+each their own FlowRow (see widgets.py, same mechanism Add/Generate use)
+rather than a plain fixed-width pack() row - inside this tab's
+CTkScrollableFrame, a too-narrow window doesn't shrink those fixed-width
+entries/buttons, it just clips whatever doesn't fit past the visible
+edge (no horizontal scrollbar), which made password placeholder text and
+the "Remove last" button unreadable at anything less than full width.
+_make_flow_rows() is the shared container/row1/row2 setup all three use.
 """
 
 from __future__ import annotations
@@ -16,6 +25,20 @@ import customtkinter as ctk
 
 from npmpi.config import DEFAULT_CONFIG_PATH, config_exists, write_config
 from npmpi.creds import DEFAULT_CREDS_PATH, creds_exist
+from npmpi.gui.widgets import FlowRow
+
+
+def _make_flow_rows(parent, pady=4) -> tuple[ctk.CTkFrame, ctk.CTkFrame, ctk.CTkFrame]:
+    """A container + its two FlowRow rows, packed and ready - widgets should
+    be created with `container` as their master, then handed to a FlowRow
+    built against (container, row1, row2)."""
+    container = ctk.CTkFrame(parent, fg_color="transparent")
+    container.pack(fill="x", padx=12, pady=pady)
+    row1 = ctk.CTkFrame(container, fg_color="transparent")
+    row1.pack(fill="x")
+    row2 = ctk.CTkFrame(container, fg_color="transparent")
+    row2.pack(fill="x", pady=(6, 0))
+    return container, row1, row2
 
 
 class _PiholeRows:
@@ -30,8 +53,7 @@ class _PiholeRows:
         self.add_row()
 
     def add_row(self) -> None:
-        row_frame = ctk.CTkFrame(self.container, fg_color="transparent")
-        row_frame.pack(fill="x", pady=2)
+        row_frame, row1, row2 = _make_flow_rows(self.container, pady=2)
         n = len(self.rows) + 1
         # No textvariable on any of these - a bound StringVar silently disables
         # CustomTkinter's placeholder_text (see add_tab.py's note). name_var keeps
@@ -40,9 +62,9 @@ class _PiholeRows:
         name_var.insert(0, f"pihole{n}")
         url_var = ctk.CTkEntry(row_frame, width=220, placeholder_text="URL, e.g. https://10.0.1.2:8489")
         pw_var = ctk.CTkEntry(row_frame, width=160, placeholder_text="password", show="*")
-        name_var.pack(side="left", padx=(0, 6))
-        url_var.pack(side="left", padx=6)
-        pw_var.pack(side="left", padx=6)
+        FlowRow(container=row_frame, row1=row1, row2=row2, items=[
+            (name_var, 0), (url_var, 6), (pw_var, 6),
+        ], wrap_index=2)
         self.rows.append({"frame": row_frame, "name": name_var, "url": url_var, "pw": pw_var})
 
     def remove_last(self) -> None:
@@ -92,49 +114,50 @@ class SetupTab:
         card.pack(fill="x", pady=(0, 12), padx=2)
         ctk.CTkLabel(card, text=f"Site '{site_key}' - {site['domain']}", font=ctk.CTkFont(weight="bold")).pack(anchor="w", padx=12, pady=(10, 4))
 
-        row = ctk.CTkFrame(card, fg_color="transparent")
-        row.pack(fill="x", padx=12, pady=4)
+        container, row1, row2 = _make_flow_rows(card)
         url_var = tk.StringVar(value=site["npm"]["url"])
         email_var = tk.StringVar(value=site["npm"]["email"])
-        ctk.CTkEntry(row, textvariable=url_var, width=220, placeholder_text="NPM URL").pack(side="left", padx=(0, 6))
-        ctk.CTkEntry(row, textvariable=email_var, width=180, placeholder_text="NPM email").pack(side="left", padx=6)
+        url_entry = ctk.CTkEntry(container, textvariable=url_var, width=220, placeholder_text="NPM URL")
+        email_entry = ctk.CTkEntry(container, textvariable=email_var, width=180, placeholder_text="NPM email")
         # No textvariable here - always starts empty, and a bound StringVar would
         # silently disable the placeholder (see add_tab.py's note).
-        pw_var = ctk.CTkEntry(row, width=160, placeholder_text="New password (blank = keep)", show="*")
-        pw_var.pack(side="left", padx=6)
-        ctk.CTkButton(row, text="Save NPM", width=100,
-                      command=lambda: self._save_npm(site_key, url_var.get(), email_var.get(), pw_var.get())).pack(side="left", padx=6)
+        pw_var = ctk.CTkEntry(container, width=240, placeholder_text="New password (blank = keep)", show="*")
+        save_btn = ctk.CTkButton(container, text="Save NPM", width=100,
+                      command=lambda: self._save_npm(site_key, url_var.get(), email_var.get(), pw_var.get()))
+        FlowRow(container=container, row1=row1, row2=row2, items=[
+            (url_entry, 0), (email_entry, 6), (pw_var, 6), (save_btn, 6),
+        ], wrap_index=2)
 
         ctk.CTkLabel(card, text="Pi-hole(s):", text_color=("gray30", "gray70")).pack(anchor="w", padx=12, pady=(8, 0))
         for idx, ph in enumerate(site["piholes"]):
-            prow = ctk.CTkFrame(card, fg_color="transparent")
-            prow.pack(fill="x", padx=12, pady=2)
+            pcontainer, prow1, prow2 = _make_flow_rows(card, pady=2)
             name_var = tk.StringVar(value=ph["name"])
             phurl_var = tk.StringVar(value=ph["url"])
+            name_entry = ctk.CTkEntry(pcontainer, textvariable=name_var, width=100)
+            url_entry = ctk.CTkEntry(pcontainer, textvariable=phurl_var, width=220)
             # No textvariable - always starts empty, needs the placeholder to work.
-            phpw_var = ctk.CTkEntry(prow, width=160, placeholder_text="New password (blank = keep)", show="*")
-            ctk.CTkEntry(prow, textvariable=name_var, width=100).pack(side="left", padx=(0, 6))
-            ctk.CTkEntry(prow, textvariable=phurl_var, width=220).pack(side="left", padx=6)
-            phpw_var.pack(side="left", padx=6)
-            ctk.CTkButton(prow, text="Save", width=70,
-                          command=lambda i=idx, n=name_var, u=phurl_var, p=phpw_var: self._save_pihole(site_key, i, n.get(), u.get(), p.get())).pack(side="left", padx=6)
+            phpw_var = ctk.CTkEntry(pcontainer, width=240, placeholder_text="New password (blank = keep)", show="*")
+            psave_btn = ctk.CTkButton(pcontainer, text="Save", width=70,
+                          command=lambda i=idx, n=name_var, u=phurl_var, p=phpw_var: self._save_pihole(site_key, i, n.get(), u.get(), p.get()))
+            FlowRow(container=pcontainer, row1=prow1, row2=prow2, items=[
+                (name_entry, 0), (url_entry, 6), (phpw_var, 6), (psave_btn, 6),
+            ], wrap_index=2)
 
-        add_row = ctk.CTkFrame(card, fg_color="transparent")
-        add_row.pack(fill="x", padx=12, pady=(6, 10))
+        acontainer, arow1, arow2 = _make_flow_rows(card, pady=(6, 10))
         # No textvariable on any of these - see add_tab.py's note. new_name_var
         # keeps a real starting value, inserted directly instead.
-        new_name_var = ctk.CTkEntry(add_row, width=100, placeholder_text="name")
+        new_name_var = ctk.CTkEntry(acontainer, width=100, placeholder_text="name")
         new_name_var.insert(0, f"pihole{len(site['piholes']) + 1}")
-        new_url_var = ctk.CTkEntry(add_row, width=220, placeholder_text="URL, e.g. https://10.0.1.2:8489")
-        new_pw_var = ctk.CTkEntry(add_row, width=160, placeholder_text="password", show="*")
-        new_name_var.pack(side="left", padx=(0, 6))
-        new_url_var.pack(side="left", padx=6)
-        new_pw_var.pack(side="left", padx=6)
-        ctk.CTkButton(add_row, text="+ Pi-hole", width=90,
-                      command=lambda: self._add_pihole(site_key, new_name_var.get(), new_url_var.get(), new_pw_var.get())).pack(side="left", padx=6)
+        new_url_var = ctk.CTkEntry(acontainer, width=220, placeholder_text="URL, e.g. https://10.0.1.2:8489")
+        new_pw_var = ctk.CTkEntry(acontainer, width=160, placeholder_text="password", show="*")
+        add_btn = ctk.CTkButton(acontainer, text="+ Pi-hole", width=90,
+                      command=lambda: self._add_pihole(site_key, new_name_var.get(), new_url_var.get(), new_pw_var.get()))
+        add_items = [(new_name_var, 0), (new_url_var, 6), (new_pw_var, 6), (add_btn, 6)]
         if site["piholes"]:
-            ctk.CTkButton(add_row, text="- Remove last", width=110, fg_color="transparent", border_width=1,
-                          command=lambda: self._remove_last_pihole(site_key)).pack(side="left", padx=6)
+            remove_btn = ctk.CTkButton(acontainer, text="- Remove last", width=110, fg_color="transparent", border_width=1,
+                          command=lambda: self._remove_last_pihole(site_key))
+            add_items.append((remove_btn, 6))
+        FlowRow(container=acontainer, row1=arow1, row2=arow2, items=add_items, wrap_index=2)
 
     def _save_npm(self, site_key: str, url: str, email: str, new_pw: str) -> None:
         url, email = url.strip(), email.strip()

@@ -214,9 +214,18 @@ class HelpButton:
         popup = ctk.CTkToplevel(self.button)
         popup.overrideredirect(True)
         popup.attributes("-topmost", True)
-        popup.configure(fg_color=("gray90", "gray14"))
+        # overrideredirect windows get no window-manager chrome at all - a
+        # thin bordered frame filling the toplevel is what gives it an edge,
+        # since the toplevel itself has no border_width/border_color of its
+        # own to configure.
+        popup.configure(fg_color=("gray70", "gray35"))
+        border = ctk.CTkFrame(
+            popup, fg_color=("gray90", "gray14"),
+            border_width=2, border_color=("gray70", "gray35"),
+        )
+        border.pack(fill="both", expand=True)
 
-        header = ctk.CTkFrame(popup, fg_color="transparent")
+        header = ctk.CTkFrame(border, fg_color="transparent")
         header.pack(fill="x", padx=10, pady=(8, 0))
         ctk.CTkLabel(header, text=f"{title} - help", font=ctk.CTkFont(size=14, weight="bold")).pack(side="left")
         ctk.CTkButton(
@@ -225,9 +234,25 @@ class HelpButton:
             command=self.close,
         ).pack(side="right")
 
-        box = ctk.CTkTextbox(popup, wrap="word", font=ctk.CTkFont(family="Consolas", size=12))
+        box = ctk.CTkTextbox(border, wrap="word", font=ctk.CTkFont(family="Consolas", size=12))
         box.insert("1.0", text)
-        box.configure(state="disabled")
+        # Left in "normal" state (not "disabled") on purpose - a disabled Tk
+        # Text widget blocks mouse-drag selection entirely, which is why this
+        # used to be uncopyable. Read-only is enforced instead by blocking
+        # actual edit keystrokes while still letting navigation/selection/
+        # copy (arrows, Ctrl+C) through.
+        def _block_edit(event):
+            navigation = {
+                "Left", "Right", "Up", "Down", "Home", "End", "Prior", "Next",
+                "Shift_L", "Shift_R", "Control_L", "Control_R",
+            }
+            if event.keysym in navigation:
+                return None
+            if (event.state & 0x4) and event.keysym.lower() == "c":  # Ctrl+C
+                return None
+            return "break"
+
+        box.bind("<Key>", _block_edit)
         box.pack(fill="both", expand=True, padx=10, pady=10)
 
         width, height = 560, 460
@@ -236,7 +261,24 @@ class HelpButton:
         popup.geometry(f"{width}x{height}+{max(x, 0)}+{y}")
 
         popup.bind("<Escape>", lambda e: self.close())
-        popup.bind("<FocusOut>", lambda e: self.close())
+        # FocusOut alone closed this the instant you clicked INTO the
+        # textbox to select/copy text - an override-redirect popup can
+        # register a click on its own child as if the popup itself lost
+        # focus. Only actually close if focus landed somewhere outside this
+        # popup's own widget tree (checked after a short delay, since right
+        # when FocusOut fires the new focus target hasn't settled yet).
+        popup.bind("<FocusOut>", lambda e: popup.after(10, self._check_focus))
         popup.focus_force()
 
         self._popup = popup
+
+    def _check_focus(self) -> None:
+        if self._popup is None:
+            return
+        focused = self._popup.focus_get()
+        w = focused
+        while w is not None:
+            if w == self._popup:
+                return  # focus is still somewhere inside the popup - leave it open
+            w = w.master
+        self.close()
